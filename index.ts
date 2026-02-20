@@ -7,6 +7,21 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 // Initialize database on startup
 initializeDatabase();
 
+// Start API server in background
+console.log("Starting API server...");
+const apiServer = Bun.spawn(["bun", "run", "web/src/apiserver.ts"], {
+  stdio: ["ignore", "inherit", "inherit"],
+  cwd: process.cwd(),
+});
+
+// Handle graceful shutdown
+process.on("SIGINT", async () => {
+  console.log("\nShutting down...");
+  apiServer.kill();
+  await client.destroy();
+  process.exit(0);
+});
+
 client.on(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}!`);
 });
