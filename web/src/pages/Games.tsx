@@ -6,6 +6,7 @@ interface Player {
   id: string
   display_name: string
   car_name?: string
+  car_image?: string
 }
 
 interface Game {
@@ -45,9 +46,29 @@ export function Games() {
     try {
       const response = await fetch(`/api/games/${game.id}`)
       const data = await response.json()
-      setSelectedGame(data)
+      
+      // Fetch car images for each player
+      const playersWithImages = await Promise.all(
+        data.players.map(async (player: Player) => {
+          if (!player.car_name) return player
+          try {
+            const imgResponse = await fetch(`/api/car-image/${encodeURIComponent(player.car_name)}`)
+            const imgData = await imgResponse.json()
+            return { ...player, car_image: imgData.imageUrl }
+          } catch (error) {
+            console.error(`Failed to fetch image for ${player.car_name}:`, error)
+            return player
+          }
+        })
+      )
+      
+      setSelectedGame({ ...data, players: playersWithImages })
     } catch (error) {
       console.error('Failed to fetch game details:', error)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
     } finally {
       setDetailLoading(false)
     }
@@ -130,19 +151,30 @@ export function Games() {
               <Loader className="animate-spin" size={32} />
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-3">
               {selectedGame.players.map(player => (
                 <div
                   key={player.id}
-                  className="flex justify-between items-center bg-gray-50 p-3 rounded-lg"
+                  className="flex items-center gap-4 bg-gray-50 p-3 rounded-lg"
                 >
-                  <span className="font-medium text-gray-800">{player.display_name}</span>
-                  {player.car_name && (
-                    <span className="text-sm text-gray-600">{player.car_name}</span>
+                  {player.car_image && (
+                    <img
+                      src={player.car_image}
+                      alt={player.car_name}
+                      className="w-20 h-20 object-cover rounded"
+                    />
                   )}
-                  {selectedGame.winner_id === player.id && (
-                    <Trophy className="text-yellow-500" size={18} />
-                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-800">{player.display_name}</span>
+                      {selectedGame.winner_id === player.id && (
+                        <Trophy className="text-yellow-500" size={18} />
+                      )}
+                    </div>
+                    {player.car_name && (
+                      <span className="text-sm text-gray-600">{player.car_name}</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

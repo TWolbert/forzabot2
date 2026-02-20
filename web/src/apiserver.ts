@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite'
 import { join } from 'path'
+import { getTopCarImage } from '../../../src/utils'
 
 // Initialize database connection
 // Use process.cwd() to ensure we get the project root
@@ -220,6 +221,24 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     return new Response(JSON.stringify(result || []), {
       headers: { 'Content-Type': 'application/json' }
     })
+  },
+
+  // Car image by name
+  '/api/car-image/:carName': async (req) => {
+    const url = new URL(req.url)
+    const carName = decodeURIComponent(url.pathname.split('/')[3])
+
+    try {
+      const imageUrl = await getTopCarImage(carName)
+      return new Response(JSON.stringify({ imageUrl }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error(`Error fetching car image for ${carName}:`, error)
+      return new Response(JSON.stringify({ imageUrl: null }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
   }
 }
 
