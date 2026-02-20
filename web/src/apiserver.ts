@@ -2,12 +2,19 @@ import { Database } from 'bun:sqlite'
 import { join } from 'path'
 
 // Initialize database connection
-// Database is at root of project, apiserver runs from web/src
-const dbPath = join(import.meta.dir, '../../forzabot.db')
-const db = new Database(dbPath)
+// Use process.cwd() to ensure we get the project root
+const dbPath = join(process.cwd(), 'forzabot.db')
+console.log(`Connecting to database at: ${dbPath}`)
 
-// Enable foreign keys
-db.exec('PRAGMA foreign_keys = ON')
+let db: Database
+try {
+  db = new Database(dbPath)
+  db.exec('PRAGMA foreign_keys = ON')
+  console.log(`✓ Database connected`)
+} catch (error) {
+  console.error(`✗ Failed to connect to database: ${error}`)
+  process.exit(1)
+}
 
 // Static file serving
 const distPath = join(import.meta.dir, '../dist')
