@@ -123,7 +123,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         COUNT(DISTINCT r.id) as games_played,
         COUNT(CASE WHEN r.winner_id = ? THEN 1 END) as wins,
         COUNT(DISTINCT t.id) as times_recorded,
-        MIN(t.time_ms) as fastest_time
+        MIN(t.laptime) as fastest_time
       FROM rounds r
       LEFT JOIN round_players rp ON r.id = rp.round_id AND rp.player_id = ?
       LEFT JOIN times t ON ? = t.player_id

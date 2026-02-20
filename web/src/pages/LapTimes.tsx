@@ -227,7 +227,12 @@ export function TimeDetail() {
             <div className="space-y-4">
               <div className="border-b border-gray-200 pb-4">
                 <p className="text-sm text-gray-600">Player</p>
-                <p className="text-2xl font-bold text-gray-800">{selectedTime.player_name}</p>
+                <Link
+                  to={`/players/${selectedTime.player_id}`}
+                  className="text-2xl font-bold text-green-600 hover:text-green-700 hover:underline"
+                >
+                  {selectedTime.player_name}
+                </Link>
               </div>
 
               <div className="border-b border-gray-200 pb-4">
