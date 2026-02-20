@@ -130,13 +130,12 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       SELECT
         t.id,
         p.display_name as player_name,
-        c.name as car_name,
+        t.car_name,
         r.name as race_name,
-        t.time_ms,
+        t.laptime as time_ms,
         t.created_at
       FROM times t
       JOIN players p ON t.player_id = p.id
-      JOIN car_choices c ON t.car_id = c.id
       JOIN races r ON t.race_id = r.id
     `
 
@@ -148,7 +147,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     }
 
     if (carFilter) {
-      query += (raceFilter ? ' AND' : ' WHERE') + ` c.name ILIKE ?`
+      query += (raceFilter ? ' AND' : ' WHERE') + ` t.car_name ILIKE ?`
       params.push(`%${carFilter}%`)
     }
 

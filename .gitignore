@@ -40,3 +40,5 @@ forzabot.db
 .DS_Store
 
 .env
+
+web/bun.lock
