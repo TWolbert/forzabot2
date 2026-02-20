@@ -291,7 +291,7 @@ const server = Bun.serve({
 
     // Try serving API routes first
     for (const [route, handler] of Object.entries(handlers)) {
-      const routePattern = route.replace(/:id/g, '[^/]+')
+      const routePattern = route.replace(/:[^/]+/g, '[^/]+')
       const regex = new RegExp(`^${routePattern}$`)
 
       if (regex.test(pathname)) {
