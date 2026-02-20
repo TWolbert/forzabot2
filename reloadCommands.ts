@@ -236,6 +236,27 @@ const commands = [
     integration_types: [0, 1],
     contexts: [0, 1, 2],
   },
+  {
+    name: "removetime",
+    description: "Remove a recorded lap time",
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+    options: [
+      {
+        name: "race",
+        description: "Name of the race/track",
+        type: 3,
+        required: true,
+        autocomplete: true,
+      },
+      {
+        name: "car_query",
+        description: "Search for a specific car (optional)",
+        type: 3,
+        required: false,
+      },
+    ],
+  },
 ];
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN!);

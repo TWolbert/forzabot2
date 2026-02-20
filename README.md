@@ -161,6 +161,20 @@ List all available races/tracks.
   - Ordered by newest first
 - **Example**: `/listrace`
 
+#### `/removetime`
+Remove a recorded lap time.
+- **Parameters**:
+  - `race` (required, string): Name of the race/track (autocomplete available!)
+  - `car_query` (optional, string): Search for specific car
+- **Features**:
+  - Autocomplete shows available races as you type
+  - Interactive car selection carousel
+  - Confirms deletion with red 🗑️ button
+  - Shows car image before deletion
+- **Examples**:
+  - `/removetime race: Silverstone` - Browse all cars to remove
+  - `/removetime race: Silverstone car_query: Ferrari` - Show only Ferrari cars
+
 ---
 
 ## Lap Time Format
@@ -198,7 +212,8 @@ Examples:
    - `/times race: Silverstone` - See all times on Silverstone
    - `/times car: Ferrari` - See all Ferrari times
    - `/times race: Silverstone car: Ferrari` - See Ferrari times on Silverstone
-4. **List all tracks**: `/listrace`
+4. **Remove a time**: `/removetime race: Silverstone car_query: Ferrari` (then confirm deletion)
+5. **List all tracks**: `/listrace`
 
 ---
 

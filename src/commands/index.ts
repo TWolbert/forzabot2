@@ -10,6 +10,7 @@ import { handleAddRace } from "./addrace";
 import { handleRegisterTime } from "./registertime";
 import { handleTimes } from "./times";
 import { handleListRace } from "./listrace";
+import { handleRemoveTime } from "./removetime";
 
 export async function handleCommand(
   interaction: ChatInputCommandInteraction,
@@ -51,6 +52,9 @@ export async function handleCommand(
       break;
     case "listrace":
       await handleListRace(interaction);
+      break;
+    case "removetime":
+      await handleRemoveTime(interaction);
       break;
     default:
       await interaction.reply({ content: "Unknown command", ephemeral: true });
