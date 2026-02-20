@@ -243,7 +243,7 @@ export function GameDetail() {
                 <img
                   src={player.car_image}
                   alt={player.car_name}
-                  className="w-20 h-20 object-cover rounded"
+                  className="w-32 aspect-video object-cover rounded"
                 />
               )}
               <div className="flex-1">

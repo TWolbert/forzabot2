@@ -22,6 +22,7 @@ interface Game {
   winner_name: string
   num_players: number
   created_at: string
+  car_name?: string
 }
 
 interface Time {
@@ -73,11 +74,20 @@ export function PlayerDetail() {
 
   // Get distinct cars and their counts
   const getCarStats = () => {
-    if (!playerData?.times) return []
+    if (!playerData) return []
     
     const carMap: Record<string, number> = {}
-    playerData.times.forEach(time => {
+    
+    // Add cars from times
+    playerData.times?.forEach(time => {
       carMap[time.car_name] = (carMap[time.car_name] || 0) + 1
+    })
+    
+    // Add cars from games
+    playerData.games?.forEach(game => {
+      if (game.car_name) {
+        carMap[game.car_name] = (carMap[game.car_name] || 0) + 1
+      }
     })
     
     return Object.entries(carMap)
@@ -257,7 +267,7 @@ export function PlayerDetail() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-6">
             {paginatedCars.map(car => (
               <div key={car.name} className="flex flex-col items-center">
-                <div className="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden mb-2 flex items-center justify-center">
+                <div className="w-full aspect-video bg-gray-100 rounded-lg overflow-hidden mb-2 flex items-center justify-center">
                   {carImages[car.name] ? (
                     <img
                       src={carImages[car.name]}

@@ -138,14 +138,16 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         r.winner_id,
         p.display_name as winner_name,
         COUNT(rp.player_id) as num_players,
-        r.created_at
+        r.created_at,
+        cc.car_name
       FROM rounds r
       LEFT JOIN players p ON r.winner_id = p.id
       LEFT JOIN round_players rp ON r.id = rp.round_id
+      LEFT JOIN car_choices cc ON r.id = cc.round_id AND cc.player_id = ?
       WHERE r.status = 'finished' AND rp.player_id = ?
       GROUP BY r.id
       ORDER BY r.created_at DESC
-    `).all(playerId)
+    `).all(playerId, playerId)
 
     // Get player's times
     const times = db.query(`

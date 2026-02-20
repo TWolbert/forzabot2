@@ -211,10 +211,10 @@ export function TimeDetail() {
               <img
                 src={selectedTime.car_image}
                 alt={selectedTime.car_name}
-                className="w-full h-auto rounded-lg shadow-md"
+                className="w-full aspect-video object-cover rounded-lg shadow-md"
               />
             ) : (
-              <div className="flex items-center justify-center h-80 bg-gray-100 rounded-lg text-gray-500">
+              <div className="flex items-center justify-center w-full aspect-video bg-gray-100 rounded-lg text-gray-500">
                 No image available
               </div>
             )}
