@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { getPastGames } from '../api'
 import { Loader, Trophy, ChevronLeft } from 'lucide-react'
 
@@ -209,7 +209,12 @@ export function GameDetail() {
           </div>
           <div className="text-right">
             <p className="text-sm font-bold text-green-600">Winner</p>
-            <p className="text-2xl font-bold text-gray-800">{selectedGame.winner_name}</p>
+            <Link
+              to={`/players/${selectedGame.winner_id}`}
+              className="text-2xl font-bold text-green-600 hover:text-green-700 hover:underline"
+            >
+              {selectedGame.winner_name}
+            </Link>
           </div>
         </div>
 
@@ -244,7 +249,12 @@ export function GameDetail() {
               )}
               <div className="flex-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-800">{player.display_name}</span>
+                  <Link
+                    to={`/players/${player.id}`}
+                    className="font-medium text-green-600 hover:text-green-700 hover:underline"
+                  >
+                    {player.display_name}
+                  </Link>
                   {selectedGame.winner_id === player.id && (
                     <Trophy className="text-yellow-500" size={18} />
                   )}

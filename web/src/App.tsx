@@ -3,6 +3,7 @@ import { Navigation } from './components/Navigation'
 import { Leaderboard } from './pages/Leaderboard'
 import { Games, GameDetail } from './pages/Games'
 import { LapTimes, TimeDetail } from './pages/LapTimes'
+import { PlayerDetail } from './pages/PlayerDetail'
 
 export function App() {
   return (
@@ -13,6 +14,7 @@ export function App() {
         <main className="max-w-6xl mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<Leaderboard />} />
+            <Route path="/players/:playerId" element={<PlayerDetail />} />
             <Route path="/games" element={<Games />} />
             <Route path="/games/:gameId" element={<GameDetail />} />
             <Route path="/times" element={<LapTimes />} />

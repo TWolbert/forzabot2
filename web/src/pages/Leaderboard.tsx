@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { getLeaderboard } from '../api'
 import { Loader } from 'lucide-react'
 
@@ -50,9 +51,12 @@ export function Leaderboard() {
                   <span className="text-2xl">{medals[index] || `${index + 1}.`}</span>
                 </td>
                 <td className="py-4 px-4">
-                  <span className="font-semibold text-gray-800">
+                  <Link
+                    to={`/players/${player.id}`}
+                    className="font-semibold text-green-600 hover:text-green-700 hover:underline"
+                  >
                     {player.display_name || player.username}
-                  </span>
+                  </Link>
                 </td>
                 <td className="py-4 px-4 text-center">
                   <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold">

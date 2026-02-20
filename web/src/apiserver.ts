@@ -108,7 +108,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     })
   },
 
-  // Individual player stats
+  // Individual player stats and details
   '/api/player/:id': (req) => {
     const url = new URL(req.url)
     const playerId = url.pathname.split('/')[3]
@@ -130,7 +130,38 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       WHERE rp.player_id = ? OR r.winner_id = ?
     `).get(playerId, playerId, playerId, playerId, playerId)
 
-    return new Response(JSON.stringify({ player, stats }), {
+    // Get player's games
+    const games = db.query(`
+      SELECT
+        r.id,
+        r.race_type,
+        r.winner_id,
+        p.display_name as winner_name,
+        COUNT(rp.player_id) as num_players,
+        r.created_at
+      FROM rounds r
+      LEFT JOIN players p ON r.winner_id = p.id
+      LEFT JOIN round_players rp ON r.id = rp.round_id
+      WHERE r.status = 'finished' AND rp.player_id = ?
+      GROUP BY r.id
+      ORDER BY r.created_at DESC
+    `).all(playerId)
+
+    // Get player's times
+    const times = db.query(`
+      SELECT
+        t.id,
+        t.car_name,
+        r.name as race_name,
+        t.laptime as time_ms,
+        t.created_at
+      FROM times t
+      JOIN races r ON t.race_id = r.id
+      WHERE t.player_id = ?
+      ORDER BY t.created_at DESC
+    `).all(playerId)
+
+    return new Response(JSON.stringify({ player, stats, games, times }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
@@ -209,6 +240,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     let query = `
       SELECT
         t.id,
+        t.player_id,
         p.display_name as player_name,
         t.car_name,
         r.name as race_name,
@@ -250,6 +282,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     const time = db.query(`
       SELECT
         t.id,
+        t.player_id,
         p.display_name as player_name,
         t.car_name,
         r.name as race_name,

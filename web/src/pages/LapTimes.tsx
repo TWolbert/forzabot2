@@ -5,6 +5,7 @@ import { Loader, Clock, ChevronLeft } from 'lucide-react'
 
 interface Time {
   id: string
+  player_id: string
   player_name: string
   car_name: string
   race_name: string
@@ -77,7 +78,13 @@ export function LapTimes() {
                 className="border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer"
               >
                 <td className="py-3 px-4 font-medium text-gray-800">
-                  {time.player_name}
+                  <Link
+                    to={`/players/${time.player_id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-green-600 hover:text-green-700 hover:underline"
+                  >
+                    {time.player_name}
+                  </Link>
                 </td>
                 <td className="py-3 px-4 text-gray-700">
                   {time.car_name}
