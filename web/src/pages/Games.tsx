@@ -230,78 +230,33 @@ export function GameDetail() {
       <div>
         <h3 className="text-xl font-bold text-gray-800 mb-4">Players ({selectedGame.players.length})</h3>
         <div className="grid grid-cols-1 gap-3">
-              {selectedGame.players.map(player => (
-                <div
-                  key={player.id}
-                  className="flex items-center gap-4 bg-gray-50 p-3 rounded-lg"
-                >
-                  {player.car_image && (
-                    <img
-                      src={player.car_image}
-                      alt={player.car_name}
-                      className="w-20 h-20 object-cover rounded"
-                    />
+          {selectedGame.players.map(player => (
+            <div
+              key={player.id}
+              className="flex items-center gap-4 bg-gray-50 p-3 rounded-lg"
+            >
+              {player.car_image && (
+                <img
+                  src={player.car_image}
+                  alt={player.car_name}
+                  className="w-20 h-20 object-cover rounded"
+                />
+              )}
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-800">{player.display_name}</span>
+                  {selectedGame.winner_id === player.id && (
+                    <Trophy className="text-yellow-500" size={18} />
                   )}
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-gray-800">{player.display_name}</span>
-                      {selectedGame.winner_id === player.id && (
-                        <Trophy className="text-yellow-500" size={18} />
-                      )}
-                    </div>
-                    {player.car_name && (
-                      <span className="text-sm text-gray-600">{player.car_name}</span>
-                    )}
-                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="bg-white rounded-lg shadow-lg p-8">
-      <h2 className="text-3xl font-bold mb-6 text-gray-800 flex items-center gap-2">
-        <Trophy className="text-yellow-500" size={32} />
-        Past Games
-      </h2>
-
-      <div className="space-y-3">
-        {games.map(game => (
-          <div
-            key={game.id}
-            onClick={() => handleGameClick(game)}
-            className="border border-gray-200 rounded-lg p-4 hover:shadow-md hover:bg-gray-50 transition cursor-pointer"
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <p className="font-semibold text-gray-800 text-lg">
-                  {formatRaceType(game.race_type)}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {formatDate(game.created_at)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-green-600">Winner</p>
-                <p className="font-semibold text-gray-800">{game.winner_name}</p>
+                {player.car_name && (
+                  <span className="text-sm text-gray-600">{player.car_name}</span>
+                )}
               </div>
             </div>
-            <div className="text-xs text-gray-500">
-              {game.num_players} players
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {games.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          No games played yet
+          ))}
         </div>
-      )}
+      </div>
     </div>
   )
 }
