@@ -14,10 +14,18 @@ const apiServer = Bun.spawn(["bun", "run", "web/src/apiserver.ts"], {
   cwd: process.cwd(),
 });
 
+// Start Vite dev server in background
+console.log("Starting dashboard...");
+const dashboardServer = Bun.spawn(["bun", "run", "dev"], {
+  stdio: ["ignore", "inherit", "inherit"],
+  cwd: new URL("./web", import.meta.url).pathname,
+});
+
 // Handle graceful shutdown
 process.on("SIGINT", async () => {
   console.log("\nShutting down...");
   apiServer.kill();
+  dashboardServer.kill();
   await client.destroy();
   process.exit(0);
 });
