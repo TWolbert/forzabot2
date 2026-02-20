@@ -69,10 +69,6 @@ export function Games() {
       setDetailLoading(false)
     }
   }
-    } finally {
-      setDetailLoading(false)
-    }
-  }
 
   const formatDate = (dateStr: string) => {
     try {
