@@ -7,25 +7,29 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 // Initialize database on startup
 initializeDatabase();
 
-// Start API server in background
+// Build the dashboard
+console.log("Building dashboard...");
+const buildResult = await Bun.spawn(["bun", "run", "build"], {
+  stdin: null,
+  cwd: new URL("./web", import.meta.url).pathname,
+}).exited;
+
+if (buildResult !== 0) {
+  console.error("Dashboard build failed!");
+  process.exit(1);
+}
+
+// Start API server in background (serves both API and built dashboard)
 console.log("Starting API server...");
 const apiServer = Bun.spawn(["bun", "run", "web/src/apiserver.ts"], {
   stdio: ["ignore", "inherit", "inherit"],
   cwd: process.cwd(),
 });
 
-// Start Vite dev server in background
-console.log("Starting dashboard...");
-const dashboardServer = Bun.spawn(["bun", "run", "dev"], {
-  stdio: ["ignore", "inherit", "inherit"],
-  cwd: new URL("./web", import.meta.url).pathname,
-});
-
 // Handle graceful shutdown
 process.on("SIGINT", async () => {
   console.log("\nShutting down...");
   apiServer.kill();
-  dashboardServer.kill();
   await client.destroy();
   process.exit(0);
 });

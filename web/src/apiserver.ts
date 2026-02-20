@@ -9,6 +9,37 @@ const db = new Database(dbPath)
 // Enable foreign keys
 db.exec('PRAGMA foreign_keys = ON')
 
+// Static file serving
+const distPath = join(import.meta.dir, '../dist')
+
+async function serveStaticFile(pathname: string): Promise<Response | null> {
+  try {
+    const filePath = join(distPath, pathname === '/' ? 'index.html' : pathname)
+    const file = await Bun.file(filePath).exists()
+    
+    if (!file) return null
+    
+    const content = await Bun.file(filePath).bytes()
+    const ext = filePath.split('.').pop()
+    
+    const mimeTypes: Record<string, string> = {
+      'html': 'text/html',
+      'css': 'text/css',
+      'js': 'application/javascript',
+      'json': 'application/json',
+      'svg': 'image/svg+xml',
+      'png': 'image/png',
+      'jpg': 'image/jpeg',
+      'ico': 'image/x-icon'
+    }
+    
+    const contentType = mimeTypes[ext as string] || 'text/plain'
+    return new Response(content, { headers: { 'Content-Type': contentType } })
+  } catch {
+    return null
+  }
+}
+
 // API Handlers
 const handlers: Record<string, (req: Request) => Response | Promise<Response>> = {
   // Leaderboard - top 10 players by wins
@@ -145,15 +176,16 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
   }
 }
 
-const port = parseInt(process.env.API_PORT || '3000', 10)
+const port = parseInt(process.env.DASHBOARD_PORT || '34234', 10)
 
 const server = Bun.serve({
+  host: '0.0.0.0',
   port,
   async fetch(req) {
     const url = new URL(req.url)
     const pathname = url.pathname
 
-    // Find route handler
+    // Try serving API routes first
     for (const [route, handler] of Object.entries(handlers)) {
       const routePattern = route.replace(/:id/g, '[^/]+')
       const regex = new RegExp(`^${routePattern}$`)
@@ -170,6 +202,14 @@ const server = Bun.serve({
         }
       }
     }
+
+    // Try serving static files
+    const staticFile = await serveStaticFile(pathname)
+    if (staticFile) return staticFile
+
+    // Fall back to index.html for SPA routing
+    const indexFile = await serveStaticFile('/')
+    if (indexFile) return indexFile
 
     return new Response(JSON.stringify({ error: 'Not found' }), {
       status: 404,
