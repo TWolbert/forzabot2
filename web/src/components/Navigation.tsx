@@ -6,7 +6,8 @@ export function Navigation() {
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/'
-    return location.pathname.startsWith(path)
+    // Check if the path starts with the target path and is either exact or has a param
+    return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
   return (
