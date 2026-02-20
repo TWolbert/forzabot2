@@ -1,6 +1,5 @@
 import { Database } from 'bun:sqlite'
 import { join } from 'path'
-import { getTopCarImage } from '../../../src/utils'
 
 // Initialize database connection
 // Use process.cwd() to ensure we get the project root
@@ -15,6 +14,45 @@ try {
 } catch (error) {
   console.error(`✗ Failed to connect to database: ${error}`)
   process.exit(1)
+}
+
+// Get car image from Forza Fandom
+async function getTopCarImage(carName: string): Promise<string | null> {
+  const baseUrl = "https://forza.fandom.com/api.php"
+
+  try {
+    // Search for the car
+    const searchUrl = new URL(baseUrl)
+    searchUrl.searchParams.set("action", "query")
+    searchUrl.searchParams.set("list", "search")
+    searchUrl.searchParams.set("srsearch", carName)
+    searchUrl.searchParams.set("srlimit", "1")
+    searchUrl.searchParams.set("format", "json")
+
+    const searchRes = await fetch(searchUrl.toString())
+    const searchData = await searchRes.json() as any
+    
+    const topTitle = searchData?.query?.search?.[0]?.title
+    if (!topTitle) return null
+
+    // Get image for the top result
+    const imageUrl = new URL(baseUrl)
+    imageUrl.searchParams.set("action", "query")
+    imageUrl.searchParams.set("prop", "pageimages")
+    imageUrl.searchParams.set("pithumbsize", "800")
+    imageUrl.searchParams.set("titles", topTitle)
+    imageUrl.searchParams.set("format", "json")
+
+    const imageRes = await fetch(imageUrl.toString())
+    const imageData = await imageRes.json() as any
+
+    const pages = imageData?.query?.pages ?? {}
+    const firstPage = Object.values(pages)[0] as any
+    return firstPage?.thumbnail?.source ?? null
+  } catch (error) {
+    console.error(`Error fetching car image for ${carName}:`, error)
+    return null
+  }
 }
 
 // Static file serving
