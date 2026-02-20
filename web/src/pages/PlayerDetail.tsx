@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, ChevronLeft, Trophy, Clock } from 'lucide-react'
+import { Loader, ChevronLeft, Trophy, Clock, ChevronRight } from 'lucide-react'
 
 interface Player {
   id: string
@@ -43,6 +43,8 @@ export function PlayerDetail() {
   const { playerId } = useParams<{ playerId: string }>()
   const [playerData, setPlayerData] = useState<PlayerData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [carsPage, setCarsPage] = useState(0)
+  const [carImages, setCarImages] = useState<Record<string, string | null>>({})
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000)
@@ -69,6 +71,25 @@ export function PlayerDetail() {
     return type.charAt(0).toUpperCase() + type.slice(1)
   }
 
+  // Get distinct cars and their counts
+  const getCarStats = () => {
+    if (!playerData?.times) return []
+    
+    const carMap: Record<string, number> = {}
+    playerData.times.forEach(time => {
+      carMap[time.car_name] = (carMap[time.car_name] || 0) + 1
+    })
+    
+    return Object.entries(carMap)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+  }
+
+  const carStats = getCarStats()
+  const CARS_PER_PAGE = 10
+  const paginatedCars = carStats.slice(carsPage * CARS_PER_PAGE, (carsPage + 1) * CARS_PER_PAGE)
+  const totalPages = Math.ceil(carStats.length / CARS_PER_PAGE)
+
   useEffect(() => {
     if (!playerId) return
 
@@ -87,6 +108,32 @@ export function PlayerDetail() {
 
     fetchPlayerData()
   }, [playerId])
+
+  // Fetch car images
+  useEffect(() => {
+    const fetchCarImages = async () => {
+      const images: Record<string, string | null> = {}
+      
+      for (const car of paginatedCars) {
+        if (!carImages[car.name]) {
+          try {
+            const response = await fetch(`/api/car-image/${encodeURIComponent(car.name)}`)
+            const data = await response.json()
+            images[car.name] = data.imageUrl
+          } catch (error) {
+            console.error(`Failed to fetch image for ${car.name}:`, error)
+            images[car.name] = null
+          }
+        }
+      }
+      
+      setCarImages(prev => ({ ...prev, ...images }))
+    }
+
+    if (paginatedCars.length > 0) {
+      fetchCarImages()
+    }
+  }, [carsPage, paginatedCars])
 
   if (loading) {
     return (
@@ -199,6 +246,64 @@ export function PlayerDetail() {
           <p className="text-gray-500">No games played yet</p>
         )}
       </div>
+
+      {/* Cars Driven */}
+      {carStats.length > 0 && (
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">
+            Cars Driven ({carStats.length})
+          </h2>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-6">
+            {paginatedCars.map(car => (
+              <div key={car.name} className="flex flex-col items-center">
+                <div className="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden mb-2 flex items-center justify-center">
+                  {carImages[car.name] ? (
+                    <img
+                      src={carImages[car.name]}
+                      alt={car.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                      <span className="text-gray-400 text-xs text-center px-2">No image</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm font-medium text-gray-800 text-center line-clamp-2">
+                  {car.name}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {car.count} time{car.count !== 1 ? 's' : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setCarsPage(Math.max(0, carsPage - 1))}
+                disabled={carsPage === 0}
+                className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {carsPage + 1} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCarsPage(Math.min(totalPages - 1, carsPage + 1))}
+                disabled={carsPage === totalPages - 1}
+                className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Times */}
       <div className="bg-white rounded-lg shadow-lg p-8">

@@ -111,7 +111,6 @@ export function Games() {
 
 export function GameDetail() {
   const { gameId } = useParams<{ gameId: string }>()
-  const navigate = useNavigate()
   const [selectedGame, setSelectedGame] = useState<GameDetail | null>(null)
   const [loading, setLoading] = useState(true)
 
