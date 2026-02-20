@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getTimes } from '../api'
-import { Loader, Clock } from 'lucide-react'
+import { Loader, Clock, ChevronLeft } from 'lucide-react'
 
 interface Time {
   id: string
@@ -9,11 +9,14 @@ interface Time {
   race_name: string
   time_ms: number
   created_at: string
+  car_image?: string
 }
 
 export function LapTimes() {
   const [times, setTimes] = useState<Time[]>([])
+  const [selectedTime, setSelectedTime] = useState<Time | null>(null)
   const [loading, setLoading] = useState(true)
+  const [imageLoading, setImageLoading] = useState(false)
 
   useEffect(() => {
     getTimes()
@@ -22,12 +25,39 @@ export function LapTimes() {
       .finally(() => setLoading(false))
   }, [])
 
+  const handleTimeClick = async (time: Time) => {
+    setImageLoading(true)
+    try {
+      const imgResponse = await fetch(`/api/car-image/${encodeURIComponent(time.car_name)}`)
+      const imgData = await imgResponse.json()
+      setSelectedTime({ ...time, car_image: imgData.imageUrl })
+    } catch (error) {
+      console.error('Failed to fetch car image:', error)
+      setSelectedTime(time)
+    } finally {
+      setImageLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
         <Loader className="animate-spin" size={40} />
       </div>
     )
+  }
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return dateStr
+    }
   }
 
   const formatTime = (ms: number) => {
@@ -38,15 +68,73 @@ export function LapTimes() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
   }
 
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      })
-    } catch {
-      return dateStr
-    }
+  if (selectedTime) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-8">
+        <button
+          onClick={() => setSelectedTime(null)}
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6 font-semibold"
+        >
+          <ChevronLeft size={20} />
+          Back to Times
+        </button>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Car Image */}
+          <div className="md:col-span-1">
+            {imageLoading ? (
+              <div className="flex justify-center items-center h-80 bg-gray-100 rounded-lg">
+                <Loader className="animate-spin" size={40} />
+              </div>
+            ) : selectedTime.car_image ? (
+              <img
+                src={selectedTime.car_image}
+                alt={selectedTime.car_name}
+                className="w-full h-auto rounded-lg shadow-md"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-80 bg-gray-100 rounded-lg text-gray-500">
+                No image available
+              </div>
+            )}
+          </div>
+
+          {/* Details */}
+          <div className="md:col-span-2">
+            <h2 className="text-3xl font-bold text-gray-800 mb-6">Lap Time Details</h2>
+
+            <div className="space-y-4">
+              <div className="border-b border-gray-200 pb-4">
+                <p className="text-sm text-gray-600">Player</p>
+                <p className="text-2xl font-bold text-gray-800">{selectedTime.player_name}</p>
+              </div>
+
+              <div className="border-b border-gray-200 pb-4">
+                <p className="text-sm text-gray-600">Car</p>
+                <p className="text-2xl font-bold text-gray-800">{selectedTime.car_name}</p>
+              </div>
+
+              <div className="border-b border-gray-200 pb-4">
+                <p className="text-sm text-gray-600">Track</p>
+                <p className="text-2xl font-bold text-gray-800">{selectedTime.race_name}</p>
+              </div>
+
+              <div className="border-b border-gray-200 pb-4">
+                <p className="text-sm text-gray-600">Lap Time</p>
+                <p className="text-3xl font-bold text-blue-600">
+                  {formatTime(selectedTime.time_ms)}
+                </p>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">Recorded</p>
+                <p className="text-lg text-gray-800">{formatDate(selectedTime.created_at)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -69,7 +157,11 @@ export function LapTimes() {
           </thead>
           <tbody>
             {times.map(time => (
-              <tr key={time.id} className="border-b border-gray-200 hover:bg-gray-50 transition">
+              <tr 
+                key={time.id} 
+                onClick={() => handleTimeClick(time)}
+                className="border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer"
+              >
                 <td className="py-3 px-4 font-medium text-gray-800">
                   {time.player_name}
                 </td>
