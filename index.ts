@@ -7,20 +7,8 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 // Initialize database on startup
 initializeDatabase();
 
-// Build the dashboard
-console.log("Building dashboard...");
-const buildResult = await Bun.spawn(["bun", "run", "build"], {
-  stdin: null,
-  cwd: new URL("./web", import.meta.url).pathname,
-}).exited;
-
-if (buildResult !== 0) {
-  console.error("Dashboard build failed!");
-  process.exit(1);
-}
-
 // Start API server in background (serves both API and built dashboard)
-console.log("Starting API server...");
+console.log("Starting server...");
 const apiServer = Bun.spawn(["bun", "run", "web/src/apiserver.ts"], {
   stdio: ["ignore", "inherit", "inherit"],
   cwd: process.cwd(),
