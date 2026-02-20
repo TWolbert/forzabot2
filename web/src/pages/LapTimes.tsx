@@ -111,7 +111,8 @@ export function LapTimes() {
 export function TimeDetail() {
   const { timeId } = useParams<{ timeId: string }>()
   const [selectedTime, setSelectedTime] = useState<Time | null>(null)
-  const [imageLoading, setImageLoading] = useState(false)
+  const [imageLoading, setImageLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000)
@@ -139,10 +140,12 @@ export function TimeDetail() {
 
     const fetchTimeDetails = async () => {
       setImageLoading(true)
+      setLoading(true)
       try {
-        const times = await getTimes()
-        const time = times.find((t: Time) => t.id === timeId)
-        if (!time) return
+        const response = await fetch(`/api/times/${timeId}`)
+        if (!response.ok) throw new Error('Time not found')
+        
+        const time = await response.json()
 
         const imgResponse = await fetch(`/api/car-image/${encodeURIComponent(time.car_name)}`)
         const imgData = await imgResponse.json()
@@ -151,24 +154,32 @@ export function TimeDetail() {
         console.error('Failed to fetch time details:', error)
       } finally {
         setImageLoading(false)
+        setLoading(false)
       }
     }
 
     fetchTimeDetails()
   }, [timeId])
 
-  if (!selectedTime && !imageLoading) {
+  if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-8">
-        <p>Time not found</p>
+      <div className="flex justify-center items-center h-96">
+        <Loader className="animate-spin" size={40} />
       </div>
     )
   }
 
-  if (imageLoading && !selectedTime) {
+  if (!selectedTime) {
     return (
-      <div className="flex justify-center items-center h-96">
-        <Loader className="animate-spin" size={40} />
+      <div className="bg-white rounded-lg shadow-lg p-8">
+        <Link
+          to="/times"
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6 font-semibold"
+        >
+          <ChevronLeft size={20} />
+          Back to Times
+        </Link>
+        <p className="text-gray-500">Time not found</p>
       </div>
     )
   }

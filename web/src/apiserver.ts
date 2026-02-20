@@ -242,6 +242,34 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     })
   },
 
+  // Individual time details
+  '/api/times/:id': (req) => {
+    const url = new URL(req.url)
+    const timeId = url.pathname.split('/')[3]
+
+    const time = db.query(`
+      SELECT
+        t.id,
+        p.display_name as player_name,
+        t.car_name,
+        r.name as race_name,
+        t.laptime as time_ms,
+        t.created_at
+      FROM times t
+      JOIN players p ON t.player_id = p.id
+      JOIN races r ON t.race_id = r.id
+      WHERE t.id = ?
+    `).get(timeId)
+
+    if (!time) {
+      return new Response(JSON.stringify({ error: 'Time not found' }), { status: 404 })
+    }
+
+    return new Response(JSON.stringify(time), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
   // All races
   '/api/races': () => {
     const result = db.query(`
