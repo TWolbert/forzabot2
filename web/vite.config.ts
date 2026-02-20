@@ -7,6 +7,7 @@ const apiPort = parseInt(process.env.API_PORT || '3000', 10)
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: '0.0.0.0',
     port: dashboardPort,
     proxy: {
       '/api': {
