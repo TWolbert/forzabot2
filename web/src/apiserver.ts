@@ -145,8 +145,10 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
   }
 }
 
+const port = parseInt(process.env.API_PORT || '3000', 10)
+
 const server = Bun.serve({
-  port: 3000,
+  port,
   async fetch(req) {
     const url = new URL(req.url)
     const pathname = url.pathname
