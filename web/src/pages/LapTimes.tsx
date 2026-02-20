@@ -71,29 +71,27 @@ export function LapTimes() {
           </thead>
           <tbody>
             {times.map(time => (
-              <Link
+              <tr 
                 key={time.id}
-                to={`/times/${time.id}`}
-                className="block border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer"
+                onClick={() => window.location.href = `/times/${time.id}`}
+                className="border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer"
               >
-                <tr>
-                  <td className="py-3 px-4 font-medium text-gray-800">
-                    {time.player_name}
-                  </td>
-                  <td className="py-3 px-4 text-gray-700">
-                    {time.car_name}
-                  </td>
-                  <td className="py-3 px-4 text-gray-700">
-                    {time.race_name}
-                  </td>
-                  <td className="py-3 px-4 text-center font-bold text-blue-600">
-                    {formatTime(time.time_ms)}
-                  </td>
-                  <td className="py-3 px-4 text-center text-gray-500">
-                    {formatDate(time.created_at)}
-                  </td>
-                </tr>
-              </Link>
+                <td className="py-3 px-4 font-medium text-gray-800">
+                  {time.player_name}
+                </td>
+                <td className="py-3 px-4 text-gray-700">
+                  {time.car_name}
+                </td>
+                <td className="py-3 px-4 text-gray-700">
+                  {time.race_name}
+                </td>
+                <td className="py-3 px-4 text-center font-bold text-blue-600">
+                  {formatTime(time.time_ms)}
+                </td>
+                <td className="py-3 px-4 text-center text-gray-500">
+                  {formatDate(time.created_at)}
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>
