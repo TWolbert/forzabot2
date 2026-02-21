@@ -521,6 +521,9 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
 
   // Car image by name
   '/api/car-image/:carName': async (req) => {
+    if (req.method !== 'GET') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
     const url = new URL(req.url)
     const carName = decodeURIComponent(url.pathname.split('/')[3])
     const indexParam = url.searchParams.get('index')
@@ -653,6 +656,19 @@ const server = Bun.serve({
       pathname,
       search: url.search
     })
+
+    const exactHandler = handlers[pathname]
+    if (exactHandler) {
+      try {
+        return await exactHandler(req)
+      } catch (error) {
+        console.error(`Error in ${pathname}:`, error)
+        return new Response(JSON.stringify({ error: 'Internal server error' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+    }
 
     if (pathname.startsWith('/car-images/')) {
       const imageResponse = await serveCarImage(pathname)
