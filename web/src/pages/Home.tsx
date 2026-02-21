@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Trophy, Gamepad2, Clock } from 'lucide-react'
+import { Trophy, Gamepad2, Clock, Zap } from 'lucide-react'
+import { getCachedCarImage } from '../utils/carImageCache'
 import logo from '../5a59366f-e744-498c-9142-270c4f2069d1.png'
 
 const PROMO_CARS = [
@@ -15,6 +16,8 @@ const PROMO_CARS = [
 
 export function Home() {
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
+  const [hasActiveRound, setHasActiveRound] = useState(false)
+  const [activeRoundImage, setActiveRoundImage] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchCarImages = async () => {
@@ -50,6 +53,49 @@ export function Home() {
     fetchCarImages()
   }, [])
 
+  useEffect(() => {
+    let mounted = true
+
+    const fetchActiveRound = async () => {
+      try {
+        const response = await fetch('/api/current-round')
+        if (!mounted) return
+        if (!response.ok) {
+          setHasActiveRound(false)
+          setActiveRoundImage(null)
+          return
+        }
+
+        const data = await response.json()
+        const chosenCars = (data?.players ?? [])
+          .map((player: { car_name?: string }) => player.car_name)
+          .filter((name: string | undefined): name is string => Boolean(name))
+
+        const fallbackCar = 'Aston Martin Valkyrie AMR Pro'
+        const carName = chosenCars.length > 0 ? chosenCars[0] : fallbackCar
+        const imageUrl = await getCachedCarImage(carName)
+
+        if (!mounted) return
+        setHasActiveRound(true)
+        setActiveRoundImage(imageUrl)
+      } catch (error) {
+        if (mounted) {
+          console.error('Failed to fetch active round:', error)
+          setHasActiveRound(false)
+          setActiveRoundImage(null)
+        }
+      }
+    }
+
+    fetchActiveRound()
+    const interval = setInterval(fetchActiveRound, 5000)
+
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
+  }, [])
+
   const getTileBackground = (carName: string, defaultGradient: string) => {
     const imageUrl = carImages[carName]
     if (imageUrl) {
@@ -74,7 +120,6 @@ export function Home() {
         <div className="relative h-full flex items-center justify-center">
           <div className="text-center text-white flex flex-col items-center gap-4">
             <img src={logo} alt="ForzaBot Logo" className="h-24 drop-shadow-2xl" />
-            <h1 className="text-5xl font-black drop-shadow-lg">FORZABOT</h1>
           </div>
         </div>
       </div>
@@ -83,6 +128,29 @@ export function Home() {
       <div className="mx-auto px-4 pb-16 flex justify-center">
         <div className="w-full max-w-6xl">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 auto-rows-max">
+            {hasActiveRound && (
+              <Link
+                to="/active-round"
+                className="group relative overflow-hidden rounded-xl shadow-2xl h-48 cursor-pointer transform transition hover:scale-105 border-4 border-orange-500"
+                style={{
+                  backgroundImage: activeRoundImage
+                    ? `linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%), url('${activeRoundImage}')`
+                    : 'linear-gradient(135deg, rgb(249, 115, 22) 0%, rgb(239, 68, 68) 100%)',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center'
+                }}
+              >
+                <div className="absolute inset-0 opacity-30" style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.15) 10px, rgba(0,0,0,0.15) 20px)'}}></div>
+                <div className="absolute top-3 right-3 flex items-center gap-2 text-white font-black text-xs bg-red-600/90 px-3 py-1 rounded-full shadow-lg">
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                  LIVE
+                </div>
+                <div className="relative h-full flex flex-col items-center justify-center text-white p-6">
+                  <Zap size={40} className="mb-2 drop-shadow-lg" />
+                  <h3 className="text-2xl font-black text-center drop-shadow-lg">ACTIVE ROUND</h3>
+                </div>
+              </Link>
+            )}
             {/* Large Games Tile with Car Background */}
             <Link
               to="/games"
