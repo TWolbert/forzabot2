@@ -17,7 +17,7 @@ try {
 }
 
 // Get car image from Forza Fandom
-async function getTopCarImage(carName: string, index = 0): Promise<string | null> {
+async function getFandomCarImage(carName: string, index = 0): Promise<string | null> {
   const baseUrl = "https://forza.fandom.com/api.php"
 
   try {
@@ -51,9 +51,56 @@ async function getTopCarImage(carName: string, index = 0): Promise<string | null
     const firstPage = Object.values(pages)[0] as any
     return firstPage?.thumbnail?.source ?? null
   } catch (error) {
-    console.error(`Error fetching car image for ${carName}:`, error)
+    console.error(`Error fetching Fandom image for ${carName}:`, error)
     return null
   }
+}
+
+// Get car image from Wikipedia
+async function getWikipediaCarImage(carName: string, index = 0): Promise<string | null> {
+  const baseUrl = "https://en.wikipedia.org/w/api.php"
+
+  try {
+    const searchUrl = new URL(baseUrl)
+    searchUrl.searchParams.set("action", "query")
+    searchUrl.searchParams.set("list", "search")
+    searchUrl.searchParams.set("srsearch", carName)
+    searchUrl.searchParams.set("srlimit", "10")
+    searchUrl.searchParams.set("format", "json")
+    searchUrl.searchParams.set("origin", "*")
+
+    const searchRes = await fetch(searchUrl.toString())
+    const searchData = await searchRes.json() as any
+
+    const safeIndex = Math.max(0, index)
+    const topTitle = searchData?.query?.search?.[safeIndex]?.title
+    if (!topTitle) return null
+
+    const imageUrl = new URL(baseUrl)
+    imageUrl.searchParams.set("action", "query")
+    imageUrl.searchParams.set("prop", "pageimages")
+    imageUrl.searchParams.set("pithumbsize", "800")
+    imageUrl.searchParams.set("titles", topTitle)
+    imageUrl.searchParams.set("format", "json")
+    imageUrl.searchParams.set("origin", "*")
+
+    const imageRes = await fetch(imageUrl.toString())
+    const imageData = await imageRes.json() as any
+
+    const pages = imageData?.query?.pages ?? {}
+    const firstPage = Object.values(pages)[0] as any
+    return firstPage?.thumbnail?.source ?? null
+  } catch (error) {
+    console.error(`Error fetching Wikipedia image for ${carName}:`, error)
+    return null
+  }
+}
+
+// Get car image with fallback sources
+async function getTopCarImage(carName: string, index = 0): Promise<string | null> {
+  const fandomImage = await getFandomCarImage(carName, index)
+  if (fandomImage) return fandomImage
+  return getWikipediaCarImage(carName, index)
 }
 
 // Static file serving
