@@ -38,6 +38,17 @@ export function LapTimes() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
   }
 
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      })
+    } catch {
+      return dateStr
+    }
+  }
+
   useEffect(() => {
     getTimes()
       .then(setTimes)
