@@ -9,6 +9,7 @@ interface Player {
   car_name?: string
   car_image?: string
   avatar_url?: string
+  confirmed_image_url?: string | null
 }
 
 interface ActiveRoundData {
@@ -94,6 +95,13 @@ export function ActiveRound() {
       for (const player of round.players) {
         if (!player.car_name) continue
         try {
+          if (player.confirmed_image_url) {
+            images[player.id] = player.confirmed_image_url
+            confirmed[player.id] = true
+            localStorage.setItem(getConfirmedKey(player.car_name), player.confirmed_image_url)
+            continue
+          }
+
           const confirmedKey = getConfirmedKey(player.car_name)
           const confirmedImage = localStorage.getItem(confirmedKey)
           if (confirmedImage) {
@@ -146,21 +154,30 @@ export function ActiveRound() {
     const carName = round?.players.find(player => player.id === playerId)?.car_name
     const imageUrl = playerCarImages[playerId]
     if (carName && imageUrl) {
-      localStorage.setItem(getConfirmedKey(carName), imageUrl)
       try {
-        await fetch('/api/car-image/confirm', {
+        const response = await fetch('/api/car-image/confirm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ carName, imageUrl })
         })
+        if (!response.ok) {
+          throw new Error('Confirm failed')
+        }
+        const data = await response.json()
+        const confirmedUrl = data?.imageUrl || imageUrl
+        localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
+        setPlayerCarImages(prev => ({
+          ...prev,
+          [playerId]: confirmedUrl
+        }))
+        setConfirmedImages(prev => ({
+          ...prev,
+          [playerId]: true
+        }))
       } catch (error) {
         console.error('Failed to confirm image:', error)
       }
     }
-    setConfirmedImages(prev => ({
-      ...prev,
-      [playerId]: true
-    }))
   }
 
   const handleManualImage = async (playerId: string) => {
@@ -173,24 +190,29 @@ export function ActiveRound() {
     const imageUrl = input.trim()
     if (!imageUrl) return
 
-    localStorage.setItem(getConfirmedKey(carName), imageUrl)
     try {
-      await fetch('/api/car-image/confirm', {
+      const response = await fetch('/api/car-image/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ carName, imageUrl })
       })
+      if (!response.ok) {
+        throw new Error('Confirm failed')
+      }
+      const data = await response.json()
+      const confirmedUrl = data?.imageUrl || imageUrl
+      localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
+      setPlayerCarImages(prev => ({
+        ...prev,
+        [playerId]: confirmedUrl
+      }))
+      setConfirmedImages(prev => ({
+        ...prev,
+        [playerId]: true
+      }))
     } catch (error) {
       console.error('Failed to confirm image:', error)
     }
-    setPlayerCarImages(prev => ({
-      ...prev,
-      [playerId]: imageUrl
-    }))
-    setConfirmedImages(prev => ({
-      ...prev,
-      [playerId]: true
-    }))
   }
 
   const formatRaceType = (type: string) => {

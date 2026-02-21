@@ -239,14 +239,30 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         t.car_name,
         r.name as race_name,
         t.laptime as time_ms,
-        t.created_at
+        t.created_at,
+        ci.image_url as confirmed_image_url
       FROM times t
       JOIN races r ON t.race_id = r.id
+      LEFT JOIN car_images ci ON lower(t.car_name) = lower(ci.car_name)
       WHERE t.player_id = ?
       ORDER BY t.created_at DESC
     `).all(playerId)
 
-    return new Response(JSON.stringify({ player, stats, games, times }), {
+    const carNames = new Set<string>()
+    for (const time of times as Array<{ car_name?: string }>) {
+      if (time.car_name) carNames.add(time.car_name)
+    }
+    for (const game of games as Array<{ car_name?: string }>) {
+      if (game.car_name) carNames.add(game.car_name)
+    }
+
+    const confirmedImages = carNames.size
+      ? db.query(
+          `SELECT car_name, image_url FROM car_images WHERE lower(car_name) IN (${[...carNames].map(() => 'lower(?)').join(', ')})`
+        ).all(...[...carNames])
+      : []
+
+    return new Response(JSON.stringify({ player, stats, games, times, confirmed_images: confirmedImages }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
@@ -354,11 +370,13 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         p.id,
         p.display_name,
         cc.car_name,
-        da.avatar_url
+        da.avatar_url,
+        ci.image_url as confirmed_image_url
       FROM round_players rp
       JOIN players p ON rp.player_id = p.id
       LEFT JOIN car_choices cc ON rp.round_id = cc.round_id AND rp.player_id = cc.player_id
       LEFT JOIN discord_avatars da ON p.id = da.player_id
+      LEFT JOIN car_images ci ON lower(cc.car_name) = lower(ci.car_name)
       WHERE rp.round_id = ?
       ORDER BY p.display_name ASC
     `).all(result.id)
@@ -418,10 +436,12 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         t.car_name,
         r.name as race_name,
         t.laptime as time_ms,
-        t.created_at
+        t.created_at,
+        ci.image_url as confirmed_image_url
       FROM times t
       JOIN players p ON t.player_id = p.id
       JOIN races r ON t.race_id = r.id
+      LEFT JOIN car_images ci ON lower(t.car_name) = lower(ci.car_name)
     `
 
     const params: any[] = []
@@ -604,7 +624,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         const verify = db.query("SELECT car_name, image_url FROM car_images WHERE lower(car_name) = lower(?)").get(carName) as { car_name?: string; image_url?: string } | null
         console.log('[car-image] insert verify', { carName, verify })
 
-        return new Response(JSON.stringify({ ok: true }), {
+        return new Response(JSON.stringify({ ok: true, imageUrl: localUrl }), {
           headers: { 'Content-Type': 'application/json' }
         })
       } catch (error) {

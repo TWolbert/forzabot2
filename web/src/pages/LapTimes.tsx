@@ -13,6 +13,7 @@ interface Time {
   time_ms: number
   created_at: string
   car_image?: string
+  confirmed_image_url?: string | null
 }
 
 const ITEMS_PER_PAGE = 12
@@ -48,11 +49,16 @@ export function LapTimes() {
       for (const time of times) {
         if (!time.car_name || images[time.car_name]) continue
         try {
-          const confirmedImage = localStorage.getItem(getConfirmedKey(time.car_name))
-          if (confirmedImage) {
-            images[time.car_name] = confirmedImage
+          if (time.confirmed_image_url) {
+            images[time.car_name] = time.confirmed_image_url
             confirmed[time.car_name] = true
+            localStorage.setItem(getConfirmedKey(time.car_name), time.confirmed_image_url)
             continue
+          }
+
+          const cachedImage = localStorage.getItem(getConfirmedKey(time.car_name))
+          if (cachedImage) {
+            images[time.car_name] = cachedImage
           }
 
           const index = carImageIndex[time.car_name] ?? 0
@@ -99,21 +105,29 @@ export function LapTimes() {
     const imageUrl = carImages[carName]
     if (!imageUrl) return
 
-    localStorage.setItem(getConfirmedKey(carName), imageUrl)
     try {
-      await fetch('/api/car-image/confirm', {
+      const response = await fetch('/api/car-image/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ carName, imageUrl })
       })
+      if (!response.ok) {
+        throw new Error('Confirm failed')
+      }
+      const data = await response.json()
+      const confirmedUrl = data?.imageUrl || imageUrl
+      localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
+      setCarImages(prev => ({
+        ...prev,
+        [carName]: confirmedUrl
+      }))
+      setConfirmedCars(prev => ({
+        ...prev,
+        [carName]: true
+      }))
     } catch (error) {
       console.error('Failed to confirm image:', error)
     }
-
-    setConfirmedCars(prev => ({
-      ...prev,
-      [carName]: true
-    }))
   }
 
   const handleManualCar = async (carName: string) => {
@@ -123,36 +137,39 @@ export function LapTimes() {
     const imageUrl = input.trim()
     if (!imageUrl) return
 
-    localStorage.setItem(getConfirmedKey(carName), imageUrl)
     try {
-      await fetch('/api/car-image/confirm', {
+      const response = await fetch('/api/car-image/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ carName, imageUrl })
       })
+      const data = await response.json()
+      const confirmedUrl = data?.imageUrl || imageUrl
+      localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
+      setCarImages(prev => ({
+        ...prev,
+        [carName]: confirmedUrl
+      }))
     } catch (error) {
       console.error('Failed to confirm image:', error)
     }
-
-    setCarImages(prev => ({
-      ...prev,
-      [carName]: imageUrl
-    }))
-    setConfirmedCars(prev => ({
-      ...prev,
-      [carName]: true
-    }))
-  }
-
-  const formatTime = (ms: number) => {
+          if (!response.ok) {
+            throw new Error('Confirm failed')
+          }
+          const data = await response.json()
+          const confirmedUrl = data?.imageUrl || imageUrl
+          localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
+          setCarImages(prev => ({
+            ...prev,
+            [carName]: confirmedUrl
+          }))
+          setConfirmedCars(prev => ({
+            ...prev,
+            [carName]: true
+          }))
     const totalSeconds = Math.floor(ms / 1000)
     const minutes = Math.floor(totalSeconds / 60)
     const seconds = totalSeconds % 60
-    const milliseconds = ms % 1000
-    return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
-  }
-
-  const formatDate = (dateStr: string) => {
     try {
       return new Date(dateStr).toLocaleDateString('en-US', {
         month: 'short',

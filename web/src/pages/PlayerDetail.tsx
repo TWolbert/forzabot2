@@ -32,6 +32,7 @@ interface Time {
   race_name: string
   time_ms: number
   created_at: string
+  confirmed_image_url?: string | null
 }
 
 interface PlayerData {
@@ -39,6 +40,7 @@ interface PlayerData {
   stats: Stats
   games: Game[]
   times: Time[]
+  confirmed_images?: Array<{ car_name: string; image_url: string }>
 }
 
 export function PlayerDetail() {
@@ -107,6 +109,15 @@ export function PlayerDetail() {
   const CARS_PER_PAGE = 10
   const paginatedCars = carStats.slice(carsPage * CARS_PER_PAGE, (carsPage + 1) * CARS_PER_PAGE)
   const totalPages = Math.ceil(carStats.length / CARS_PER_PAGE)
+
+  const confirmedImageMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    if (!playerData?.confirmed_images) return map
+    for (const item of playerData.confirmed_images) {
+      map[item.car_name.toLowerCase()] = item.image_url
+    }
+    return map
+  }, [playerData])
 
   // Games pagination
   const GAMES_PER_PAGE = 10
@@ -237,11 +248,17 @@ export function PlayerDetail() {
       for (const car of paginatedCars) {
         if (!carImages[car.name]) {
           try {
-            const confirmedImage = localStorage.getItem(getConfirmedKey(car.name))
+            const confirmedImage = confirmedImageMap[car.name.toLowerCase()]
             if (confirmedImage) {
               images[car.name] = confirmedImage
               confirmed[car.name] = true
+              localStorage.setItem(getConfirmedKey(car.name), confirmedImage)
               continue
+            }
+
+            const cachedImage = localStorage.getItem(getConfirmedKey(car.name))
+            if (cachedImage) {
+              images[car.name] = cachedImage
             }
 
             const index = carImageIndex[car.name] ?? 0
@@ -261,7 +278,7 @@ export function PlayerDetail() {
     if (paginatedCars.length > 0) {
       fetchCarImages()
     }
-  }, [carsPage, paginatedCars, carImages, carImageIndex])
+  }, [carsPage, paginatedCars, carImages, carImageIndex, confirmedImageMap])
 
   const handleRetryCar = async (carName: string) => {
     localStorage.removeItem(getConfirmedKey(carName))
@@ -289,21 +306,29 @@ export function PlayerDetail() {
     const imageUrl = carImages[carName]
     if (!imageUrl) return
 
-    localStorage.setItem(getConfirmedKey(carName), imageUrl)
     try {
-      await fetch('/api/car-image/confirm', {
+      const response = await fetch('/api/car-image/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ carName, imageUrl })
       })
+      if (!response.ok) {
+        throw new Error('Confirm failed')
+      }
+      const data = await response.json()
+      const confirmedUrl = data?.imageUrl || imageUrl
+      localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
+      setCarImages(prev => ({
+        ...prev,
+        [carName]: confirmedUrl
+      }))
+      setConfirmedCars(prev => ({
+        ...prev,
+        [carName]: true
+      }))
     } catch (error) {
       console.error('Failed to confirm image:', error)
     }
-
-    setConfirmedCars(prev => ({
-      ...prev,
-      [carName]: true
-    }))
   }
 
   const handleManualCar = async (carName: string) => {
@@ -313,36 +338,39 @@ export function PlayerDetail() {
     const imageUrl = input.trim()
     if (!imageUrl) return
 
-    localStorage.setItem(getConfirmedKey(carName), imageUrl)
     try {
-      await fetch('/api/car-image/confirm', {
+      const response = await fetch('/api/car-image/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ carName, imageUrl })
       })
+      const data = await response.json()
+      const confirmedUrl = data?.imageUrl || imageUrl
+      localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
+      setCarImages(prev => ({
+        ...prev,
+        [carName]: confirmedUrl
+      }))
     } catch (error) {
       console.error('Failed to confirm image:', error)
     }
-
-    setCarImages(prev => ({
-      ...prev,
-      [carName]: imageUrl
-    }))
-    setConfirmedCars(prev => ({
-      ...prev,
-      [carName]: true
-    }))
-  }
-
-  if (loading) {
+          if (!response.ok) {
+            throw new Error('Confirm failed')
+          }
+          const data = await response.json()
+          const confirmedUrl = data?.imageUrl || imageUrl
+          localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
+          setCarImages(prev => ({
+            ...prev,
+            [carName]: confirmedUrl
+          }))
+          setConfirmedCars(prev => ({
+            ...prev,
+            [carName]: true
+          }))
     return (
       <div className="flex justify-center items-center h-96">
         <Loader className="animate-spin" size={40} />
-      </div>
-    )
-  }
-
-  if (!playerData) {
     return (
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-green-500 drop-shadow-2xl">
         <Link
