@@ -26,7 +26,8 @@ export function ActiveRound() {
   const navigate = useNavigate()
   const [round, setRound] = useState<ActiveRoundData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [carImages, setCarImages] = useState<Record<string, string | null>>({})
+  const [playerCarImages, setPlayerCarImages] = useState<Record<string, string | null>>({})
+  const [playerImageIndex, setPlayerImageIndex] = useState<Record<string, number>>({})
   const lastRoundIdRef = useRef<string | null>(null)
   const redirectedRef = useRef(false)
 
@@ -84,21 +85,29 @@ export function ActiveRound() {
       const images: Record<string, string | null> = {}
       
       for (const player of round.players) {
-        if (!player.car_name || images[player.car_name]) continue
+        if (!player.car_name) continue
         try {
-          const imageUrl = await getCachedCarImage(player.car_name)
-          images[player.car_name] = imageUrl
+          const index = playerImageIndex[player.id] ?? 0
+          const imageUrl = await getCachedCarImage(player.car_name, index)
+          images[player.id] = imageUrl
         } catch (error) {
           console.error(`Failed to fetch image for ${player.car_name}:`, error)
-          images[player.car_name] = null
+          images[player.id] = null
         }
       }
       
-      setCarImages(images)
+      setPlayerCarImages(prev => ({ ...prev, ...images }))
     }
 
     fetchCarImages()
-  }, [round])
+  }, [round, playerImageIndex])
+
+  const handleNextImage = (playerId: string) => {
+    setPlayerImageIndex(prev => ({
+      ...prev,
+      [playerId]: (prev[playerId] ?? 0) + 1
+    }))
+  }
 
   const formatRaceType = (type: string) => {
     return type.charAt(0).toUpperCase() + type.slice(1)
@@ -176,7 +185,7 @@ export function ActiveRound() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {round.players.map(player => {
-            const carImage = carImages[player.car_name || '']
+            const carImage = playerCarImages[player.id]
             
             return (
               <div
@@ -184,13 +193,24 @@ export function ActiveRound() {
                 className="bg-gray-800 p-4 rounded-lg border-4 border-orange-500 hover:bg-gray-700 transform transition hover:scale-105 drop-shadow-lg"
               >
                 {/* Car Image */}
-                {carImage && (
-                  <div className="mb-3 -mx-4 -mt-4">
-                    <img
-                      src={carImage}
-                      alt={player.car_name}
-                      className="w-full h-32 object-cover rounded-t-lg border-b-2 border-orange-500"
-                    />
+                {player.car_name && (
+                  <div className="mb-3 -mx-4 -mt-4 group relative">
+                    <div className="w-full h-32 overflow-hidden rounded-t-lg border-b-2 border-orange-500 bg-gradient-to-br from-gray-700 to-gray-800">
+                      {carImage && (
+                        <img
+                          src={carImage}
+                          alt={player.car_name}
+                          className="w-full h-32 object-cover"
+                        />
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleNextImage(player.id)}
+                      className="absolute bottom-2 right-2 bg-orange-500/90 hover:bg-orange-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition"
+                    >
+                      Next image
+                    </button>
                   </div>
                 )}
 

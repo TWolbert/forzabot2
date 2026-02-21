@@ -17,7 +17,7 @@ try {
 }
 
 // Get car image from Forza Fandom
-async function getTopCarImage(carName: string): Promise<string | null> {
+async function getTopCarImage(carName: string, index = 0): Promise<string | null> {
   const baseUrl = "https://forza.fandom.com/api.php"
 
   try {
@@ -26,13 +26,14 @@ async function getTopCarImage(carName: string): Promise<string | null> {
     searchUrl.searchParams.set("action", "query")
     searchUrl.searchParams.set("list", "search")
     searchUrl.searchParams.set("srsearch", carName)
-    searchUrl.searchParams.set("srlimit", "1")
+    searchUrl.searchParams.set("srlimit", "10")
     searchUrl.searchParams.set("format", "json")
 
     const searchRes = await fetch(searchUrl.toString())
     const searchData = await searchRes.json() as any
     
-    const topTitle = searchData?.query?.search?.[0]?.title
+    const safeIndex = Math.max(0, index)
+    const topTitle = searchData?.query?.search?.[safeIndex]?.title
     if (!topTitle) return null
 
     // Get image for the top result
@@ -367,9 +368,11 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
   '/api/car-image/:carName': async (req) => {
     const url = new URL(req.url)
     const carName = decodeURIComponent(url.pathname.split('/')[3])
+    const indexParam = url.searchParams.get('index')
+    const index = indexParam ? Number.parseInt(indexParam, 10) : 0
 
     try {
-      const imageUrl = await getTopCarImage(carName)
+      const imageUrl = await getTopCarImage(carName, Number.isNaN(index) ? 0 : index)
       return new Response(JSON.stringify({ imageUrl }), {
         headers: { 'Content-Type': 'application/json' }
       })

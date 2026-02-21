@@ -16,9 +16,9 @@ interface CacheEntry {
  * @param carName - The name of the car
  * @returns The image URL or null if not found
  */
-export async function getCachedCarImage(carName: string): Promise<string | null> {
+export async function getCachedCarImage(carName: string, index = 0): Promise<string | null> {
   try {
-    const cacheKey = `${CACHE_KEY_PREFIX}${carName}`
+    const cacheKey = `${CACHE_KEY_PREFIX}${carName}-${index}`
     
     // Check if we have a cached version
     const cached = localStorage.getItem(cacheKey)
@@ -38,7 +38,7 @@ export async function getCachedCarImage(carName: string): Promise<string | null>
     }
     
     // Fetch from API
-    const response = await fetch(`/api/car-image/${encodeURIComponent(carName)}`)
+    const response = await fetch(`/api/car-image/${encodeURIComponent(carName)}?index=${index}`)
     if (!response.ok) {
       return null
     }
