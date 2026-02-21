@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Loader, ChevronLeft, Users, Trophy } from 'lucide-react'
+import { Loader, ChevronLeft, Users, Trophy, Check } from 'lucide-react'
 import { getCachedCarImage } from '../utils/carImageCache'
 
 interface Player {
@@ -28,6 +28,7 @@ export function ActiveRound() {
   const [loading, setLoading] = useState(true)
   const [playerCarImages, setPlayerCarImages] = useState<Record<string, string | null>>({})
   const [playerImageIndex, setPlayerImageIndex] = useState<Record<string, number>>({})
+  const [confirmedImages, setConfirmedImages] = useState<Record<string, boolean>>({})
   const lastRoundIdRef = useRef<string | null>(null)
   const redirectedRef = useRef(false)
 
@@ -88,7 +89,7 @@ export function ActiveRound() {
         if (!player.car_name) continue
         try {
           const index = playerImageIndex[player.id] ?? 0
-          const imageUrl = await getCachedCarImage(player.car_name, index)
+          const imageUrl = await getCachedCarImage(player.car_name, index, { forceRefresh: index !== 0 })
           images[player.id] = imageUrl
         } catch (error) {
           console.error(`Failed to fetch image for ${player.car_name}:`, error)
@@ -102,10 +103,21 @@ export function ActiveRound() {
     fetchCarImages()
   }, [round, playerImageIndex])
 
-  const handleNextImage = (playerId: string) => {
+  const handleRetryImage = (playerId: string) => {
     setPlayerImageIndex(prev => ({
       ...prev,
-      [playerId]: (prev[playerId] ?? 0) + 1
+      [playerId]: Math.floor(Math.random() * 10)
+    }))
+    setConfirmedImages(prev => ({
+      ...prev,
+      [playerId]: false
+    }))
+  }
+
+  const handleConfirmImage = (playerId: string) => {
+    setConfirmedImages(prev => ({
+      ...prev,
+      [playerId]: true
     }))
   }
 
@@ -186,6 +198,7 @@ export function ActiveRound() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {round.players.map(player => {
             const carImage = playerCarImages[player.id]
+            const isConfirmed = confirmedImages[player.id]
             
             return (
               <div
@@ -204,13 +217,28 @@ export function ActiveRound() {
                         />
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleNextImage(player.id)}
-                      className="absolute bottom-2 right-2 bg-orange-500/90 hover:bg-orange-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition"
-                    >
-                      Next image
-                    </button>
+                    <div className="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                      <button
+                        type="button"
+                        onClick={() => handleRetryImage(player.id)}
+                        className="bg-orange-500/90 hover:bg-orange-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                      >
+                        Retry search
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmImage(player.id)}
+                        className="bg-green-500/90 hover:bg-green-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                    {isConfirmed && (
+                      <div className="absolute top-2 left-2 flex items-center gap-1 bg-green-500/90 text-white text-xs font-black px-2 py-1 rounded-full shadow-lg">
+                        <Check size={14} />
+                        Correct
+                      </div>
+                    )}
                   </div>
                 )}
 

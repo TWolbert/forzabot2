@@ -188,6 +188,18 @@ export function GameDetail() {
 
   return (
     <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-yellow-500 drop-shadow-2xl">
+      <div className="bg-gray-800 p-4 rounded-lg border-2 border-green-500 mb-6 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-black text-green-400 uppercase mb-1">Winner</p>
+          <Link
+            to={`/players/${selectedGame.winner_id}`}
+            className="text-3xl font-black text-green-400 hover:text-green-300 hover:underline transition drop-shadow-lg"
+          >
+            {selectedGame.winner_name}
+          </Link>
+        </div>
+        <Trophy className="text-green-400 drop-shadow-lg" size={36} />
+      </div>
       <Link
         to="/games"
         className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 mb-6 font-black transition"

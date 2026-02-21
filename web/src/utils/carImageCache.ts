@@ -16,24 +16,30 @@ interface CacheEntry {
  * @param carName - The name of the car
  * @returns The image URL or null if not found
  */
-export async function getCachedCarImage(carName: string, index = 0): Promise<string | null> {
+export async function getCachedCarImage(
+  carName: string,
+  index = 0,
+  options: { forceRefresh?: boolean } = {}
+): Promise<string | null> {
   try {
     const cacheKey = `${CACHE_KEY_PREFIX}${carName}-${index}`
     
     // Check if we have a cached version
-    const cached = localStorage.getItem(cacheKey)
-    if (cached) {
-      try {
-        const entry: CacheEntry = JSON.parse(cached)
-        const now = Date.now()
-        
-        // Check if cache is still valid (7 days)
-        if (now - entry.timestamp < CACHE_DURATION) {
-          return entry.imageUrl
+    if (!options.forceRefresh) {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) {
+        try {
+          const entry: CacheEntry = JSON.parse(cached)
+          const now = Date.now()
+          
+          // Check if cache is still valid (7 days)
+          if (now - entry.timestamp < CACHE_DURATION) {
+            return entry.imageUrl
+          }
+        } catch {
+          // If parsing fails, treat as invalid cache
+          localStorage.removeItem(cacheKey)
         }
-      } catch {
-        // If parsing fails, treat as invalid cache
-        localStorage.removeItem(cacheKey)
       }
     }
     
