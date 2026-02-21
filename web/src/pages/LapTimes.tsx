@@ -21,6 +21,8 @@ export function LapTimes() {
   const [times, setTimes] = useState<Time[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
+  const [sortKey, setSortKey] = useState<'track' | 'car' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
   const [carImageIndex, setCarImageIndex] = useState<Record<string, number>>({})
   const [confirmedCars, setConfirmedCars] = useState<Record<string, boolean>>({})
@@ -33,6 +35,10 @@ export function LapTimes() {
       .catch(err => console.error(err))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    setCurrentPage(0)
+  }, [sortKey, sortDirection])
 
   useEffect(() => {
     const fetchCarImages = async () => {
@@ -165,8 +171,17 @@ export function LapTimes() {
     )
   }
 
-  const totalPages = Math.ceil(times.length / ITEMS_PER_PAGE)
-  const paginatedTimes = times.slice(
+  const sortedTimes = sortKey
+    ? [...times].sort((a, b) => {
+        const aValue = sortKey === 'track' ? a.race_name : a.car_name
+        const bValue = sortKey === 'track' ? b.race_name : b.car_name
+        const result = aValue.localeCompare(bValue)
+        return sortDirection === 'asc' ? result : -result
+      })
+    : times
+
+  const totalPages = Math.ceil(sortedTimes.length / ITEMS_PER_PAGE)
+  const paginatedTimes = sortedTimes.slice(
     currentPage * ITEMS_PER_PAGE,
     (currentPage + 1) * ITEMS_PER_PAGE
   )
@@ -177,6 +192,42 @@ export function LapTimes() {
         <Clock className="text-cyan-400" size={40} />
         LAP TIMES
       </h2>
+
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <span className="text-xs font-black text-cyan-400 uppercase">Sort by</span>
+        <button
+          type="button"
+          onClick={() => {
+            setSortKey('track')
+            setSortDirection(prev => (sortKey === 'track' ? (prev === 'asc' ? 'desc' : 'asc') : 'asc'))
+          }}
+          className={`px-3 py-1 rounded-full border-2 font-black text-xs transition ${sortKey === 'track' ? 'border-cyan-400 text-cyan-200 bg-cyan-900/40' : 'border-cyan-700 text-cyan-400 hover:border-cyan-500'}`}
+        >
+          Track {sortKey === 'track' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSortKey('car')
+            setSortDirection(prev => (sortKey === 'car' ? (prev === 'asc' ? 'desc' : 'asc') : 'asc'))
+          }}
+          className={`px-3 py-1 rounded-full border-2 font-black text-xs transition ${sortKey === 'car' ? 'border-cyan-400 text-cyan-200 bg-cyan-900/40' : 'border-cyan-700 text-cyan-400 hover:border-cyan-500'}`}
+        >
+          Car {sortKey === 'car' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+        </button>
+        {sortKey && (
+          <button
+            type="button"
+            onClick={() => {
+              setSortKey(null)
+              setSortDirection('asc')
+            }}
+            className="px-3 py-1 rounded-full border-2 border-gray-700 text-gray-300 text-xs font-black hover:border-gray-500 transition"
+          >
+            Clear
+          </button>
+        )}
+      </div>
 
       {times.length === 0 ? (
         <div className="text-center py-12 text-gray-400 text-lg font-bold">
