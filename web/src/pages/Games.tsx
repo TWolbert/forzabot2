@@ -29,6 +29,7 @@ interface GameDetail extends Game {
   players: Player[]
   class: string
   value: number
+  scores?: Array<{ player_id: string; display_name: string; points: number }>
 }
 
 export function Games() {
@@ -281,6 +282,26 @@ export function GameDetail() {
           ))}
         </div>
       </div>
+
+      {selectedGame.scores && selectedGame.scores.length > 0 && (
+        <div className="mt-8 bg-gray-900/80 border-2 border-yellow-500 rounded-xl p-6">
+          <h3 className="text-2xl font-black text-yellow-300 mb-4 uppercase drop-shadow-lg">Final Scores</h3>
+          <div className="space-y-2">
+            {selectedGame.scores.map((score, index) => (
+              <div
+                key={score.player_id}
+                className="flex items-center justify-between bg-gray-800/80 border border-yellow-500/40 rounded-lg px-4 py-2"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-yellow-300 font-black w-6 text-right">{index + 1}.</span>
+                  <span className="font-black text-white">{score.display_name}</span>
+                </div>
+                <span className="text-yellow-300 font-black text-lg">{score.points}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

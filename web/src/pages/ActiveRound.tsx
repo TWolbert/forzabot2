@@ -21,6 +21,7 @@ interface ActiveRoundData {
   status: string
   created_at: string
   players: Player[]
+  scores?: Array<{ player_id: string; display_name: string; points: number }>
 }
 
 export function ActiveRound() {
@@ -259,6 +260,26 @@ export function ActiveRound() {
           <p className="text-2xl font-black text-white drop-shadow-lg">{round.players.length}</p>
         </div>
       </div>
+
+      {round.scores && round.scores.length > 0 && (
+        <div className="mb-8 bg-gray-900/80 border-2 border-orange-500 rounded-xl p-6">
+          <h2 className="text-2xl font-black text-orange-400 mb-4 uppercase drop-shadow-lg">Live Scores</h2>
+          <div className="space-y-2">
+            {round.scores.map((score, index) => (
+              <div
+                key={score.player_id}
+                className="flex items-center justify-between bg-gray-800/80 border border-orange-500/40 rounded-lg px-4 py-2"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-orange-300 font-black w-6 text-right">{index + 1}.</span>
+                  <span className="font-black text-white">{score.display_name}</span>
+                </div>
+                <span className="text-orange-300 font-black text-lg">{score.points}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Players Section */}
       <div>

@@ -64,6 +64,26 @@ export function initializeDatabase() {
       car_name TEXT PRIMARY KEY,
       image_url TEXT NOT NULL,
       confirmed_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS round_scores (
+      round_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      points INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (round_id, player_id),
+      FOREIGN KEY (round_id) REFERENCES rounds (id),
+      FOREIGN KEY (player_id) REFERENCES players (id)
+    );
+    CREATE TABLE IF NOT EXISTS round_race_results (
+      round_id TEXT NOT NULL,
+      race_index INTEGER NOT NULL,
+      race_type TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      points INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (round_id, race_index, player_id),
+      FOREIGN KEY (round_id) REFERENCES rounds (id),
+      FOREIGN KEY (player_id) REFERENCES players (id)
     )
   `);
 
@@ -98,6 +118,20 @@ export function initializeDatabase() {
   // Add car_images table for confirmed car images if it doesn't exist
   try {
     db.exec(`CREATE TABLE IF NOT EXISTS car_images (car_name TEXT PRIMARY KEY, image_url TEXT NOT NULL, confirmed_at INTEGER NOT NULL)`);
+  } catch (e) {
+    // Table already exists, ignore
+  }
+
+  // Add round_scores table if it doesn't exist
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS round_scores (round_id TEXT NOT NULL, player_id TEXT NOT NULL, points INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (round_id, player_id))`);
+  } catch (e) {
+    // Table already exists, ignore
+  }
+
+  // Add round_race_results table if it doesn't exist
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS round_race_results (round_id TEXT NOT NULL, race_index INTEGER NOT NULL, race_type TEXT NOT NULL, player_id TEXT NOT NULL, position INTEGER NOT NULL, points INTEGER NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (round_id, race_index, player_id))`);
   } catch (e) {
     // Table already exists, ignore
   }

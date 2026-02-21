@@ -286,7 +286,18 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       ORDER BY p.display_name ASC
     `).all(gameId)
 
-    return new Response(JSON.stringify({ ...game, players }), {
+    const scores = db.query(`
+      SELECT
+        rs.player_id,
+        p.display_name,
+        rs.points
+      FROM round_scores rs
+      JOIN players p ON rs.player_id = p.id
+      WHERE rs.round_id = ?
+      ORDER BY rs.points DESC, p.display_name ASC
+    `).all(gameId)
+
+    return new Response(JSON.stringify({ ...game, players, scores }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
@@ -326,7 +337,18 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       ORDER BY p.display_name ASC
     `).all(result.id)
 
-    return new Response(JSON.stringify({ ...result, players }), {
+    const scores = db.query(`
+      SELECT
+        rs.player_id,
+        p.display_name,
+        rs.points
+      FROM round_scores rs
+      JOIN players p ON rs.player_id = p.id
+      WHERE rs.round_id = ?
+      ORDER BY rs.points DESC, p.display_name ASC
+    `).all(result.id)
+
+    return new Response(JSON.stringify({ ...result, players, scores }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
