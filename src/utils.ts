@@ -228,10 +228,16 @@ export const getRaceIconPath = async (raceType: string): Promise<string | null> 
 };
 
 export const getTopCarImage = async (carName: string): Promise<string | null> => {
+  const baseUrl = process.env.IMAGE_BASE_URL?.replace(/\/$/, "") || "";
+  const toAbsoluteUrl = (url: string) => {
+    if (!url.startsWith("/")) return url;
+    return baseUrl ? `${baseUrl}${url}` : url;
+  };
+
   try {
     const confirmed = db.query("SELECT image_url FROM car_images WHERE lower(car_name) = lower(?)").get(carName) as { image_url?: string } | null;
     if (confirmed?.image_url) {
-      return confirmed.image_url;
+      return toAbsoluteUrl(confirmed.image_url);
     }
   } catch (error) {
     console.warn(`Failed to read confirmed image for ${carName}:`, error);

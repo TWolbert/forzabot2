@@ -82,33 +82,33 @@ export function PlayerDetail() {
     return type.charAt(0).toUpperCase() + type.slice(1)
   }
 
-  // Get distinct cars and their counts
-  const getCarStats = () => {
+  const carStats = useMemo(() => {
     if (!playerData) return []
-    
+
     const carMap: Record<string, number> = {}
-    
+
     // Add cars from times
     playerData.times?.forEach(time => {
       carMap[time.car_name] = (carMap[time.car_name] || 0) + 1
     })
-    
+
     // Add cars from games
     playerData.games?.forEach(game => {
       if (game.car_name) {
         carMap[game.car_name] = (carMap[game.car_name] || 0) + 1
       }
     })
-    
+
     return Object.entries(carMap)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
-  }
-
-  const carStats = getCarStats()
+  }, [playerData])
   const CARS_PER_PAGE = 10
-  const paginatedCars = carStats.slice(carsPage * CARS_PER_PAGE, (carsPage + 1) * CARS_PER_PAGE)
-  const totalPages = Math.ceil(carStats.length / CARS_PER_PAGE)
+  const paginatedCars = useMemo(
+    () => carStats.slice(carsPage * CARS_PER_PAGE, (carsPage + 1) * CARS_PER_PAGE),
+    [carStats, carsPage]
+  )
+  const totalPages = useMemo(() => Math.ceil(carStats.length / CARS_PER_PAGE), [carStats])
 
   const confirmedImageMap = useMemo(() => {
     const map: Record<string, string> = {}
@@ -278,7 +278,7 @@ export function PlayerDetail() {
     if (paginatedCars.length > 0) {
       fetchCarImages()
     }
-  }, [carsPage, paginatedCars, carImages, carImageIndex, confirmedImageMap])
+  }, [paginatedCars, carImageIndex, confirmedImageMap])
 
   const handleRetryCar = async (carName: string) => {
     localStorage.removeItem(getConfirmedKey(carName))
