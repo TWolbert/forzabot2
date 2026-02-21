@@ -191,7 +191,7 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
 
     const embed = new EmbedBuilder()
       .setTitle(`Select 1st Place - ${raceType.toUpperCase()}`)
-      .setDescription("Pick the finishing order for this race.")
+      .setDescription(`Please race the ${raceType.toUpperCase()} race, then pick the finishing order.`)
       .setColor(0xff8c00);
 
     const buttons = currentSelection.remaining.map(playerId =>
@@ -272,12 +272,25 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
       db.prepare("UPDATE rounds SET status = 'finished', winner_id = ? WHERE id = ?").run(winnerId, round.id);
     }
 
+    const winnerCar = winnerId ? (carChoiceMap.get(winnerId) || "No car selected") : "No car selected";
+    let winnerCarImage: string | null = null;
+    if (winnerCar && winnerCar !== "No car selected") {
+      winnerCarImage = await getTopCarImage(winnerCar);
+    }
+
     const finalEmbed = new EmbedBuilder()
       .setTitle("🏆 Series Complete")
       .setDescription(`Winner: **${getPlayerName(winnerId)}**`)
-      .addFields({ name: "Final Scores", value: buildStandingsText() })
+      .addFields(
+        { name: "Winning Car", value: `**${winnerCar}**`, inline: false },
+        { name: "Final Scores", value: buildStandingsText() }
+      )
       .setColor(0xffd700)
       .setFooter({ text: `Round ID: ${round.id}` });
+
+    if (winnerCarImage) {
+      finalEmbed.setImage(winnerCarImage);
+    }
 
     await i.update({ embeds: [finalEmbed], components: [] });
     collector.stop();
