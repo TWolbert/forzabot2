@@ -192,7 +192,7 @@ export function PlayerDetail() {
   const countChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 200 },
+    animation: false,
     plugins: {
       legend: { display: false }
     },
@@ -211,7 +211,7 @@ export function PlayerDetail() {
   const progressChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 200 },
+    animation: false,
     plugins: {
       legend: { display: false },
       tooltip: {
