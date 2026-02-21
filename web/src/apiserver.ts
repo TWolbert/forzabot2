@@ -619,7 +619,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
   }
 }
 
-const port = parseInt(process.env.API_PORT || process.env.DASHBOARD_PORT || '34234', 10)
+const port = parseInt(process.env.DASHBOARD_PORT || '34234', 10)
 
 const server = Bun.serve({
   host: '0.0.0.0',
