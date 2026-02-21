@@ -1,9 +1,10 @@
 import { Database } from 'bun:sqlite'
+import { mkdir, unlink } from 'node:fs/promises'
 import { join } from 'path'
 
 // Initialize database connection
-// Use process.cwd() to ensure we get the project root
-const dbPath = join(process.cwd(), 'forzabot.db')
+// Resolve to repo root so the API writes to the shared DB
+const dbPath = join(import.meta.dir, '../../forzabot.db')
 console.log(`Connecting to database at: ${dbPath}`)
 
 let db: Database
@@ -112,6 +113,7 @@ async function getTopCarImage(carName: string, index = 0): Promise<string | null
 
 // Static file serving
 const distPath = join(import.meta.dir, '../dist')
+const carImagesPath = join(import.meta.dir, '../car-images')
 
 async function serveStaticFile(pathname: string): Promise<Response | null> {
   try {
@@ -135,6 +137,30 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
     }
     
     const contentType = mimeTypes[ext as string] || 'text/plain'
+    return new Response(content, { headers: { 'Content-Type': contentType } })
+  } catch {
+    return null
+  }
+}
+
+async function serveCarImage(pathname: string): Promise<Response | null> {
+  try {
+    const filePath = join(carImagesPath, pathname.replace(/^\/car-images\//, ''))
+    const file = await Bun.file(filePath).exists()
+
+    if (!file) return null
+
+    const content = await Bun.file(filePath).bytes()
+    const ext = filePath.split('.').pop()
+
+    const mimeTypes: Record<string, string> = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'webp': 'image/webp'
+    }
+
+    const contentType = mimeTypes[ext as string] || 'application/octet-stream'
     return new Response(content, { headers: { 'Content-Type': contentType } })
   } catch {
     return null
@@ -522,10 +548,45 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
           return new Response(JSON.stringify({ error: 'Missing carName or imageUrl' }), { status: 400 })
         }
 
+        await mkdir(carImagesPath, { recursive: true })
+
+        const slug = body.carName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '')
+
+        const imageResponse = await fetch(body.imageUrl)
+        if (!imageResponse.ok) {
+          return new Response(JSON.stringify({ error: 'Failed to download image' }), { status: 400 })
+        }
+
+        const contentType = imageResponse.headers.get('content-type') || ''
+        const extensionMap: Record<string, string> = {
+          'image/jpeg': 'jpg',
+          'image/png': 'png',
+          'image/webp': 'webp'
+        }
+        const extension = extensionMap[contentType] || 'jpg'
+        const filename = `${slug || 'car'}-${Date.now()}.${extension}`
+        const filePath = join(carImagesPath, filename)
+
+        const buffer = new Uint8Array(await imageResponse.arrayBuffer())
+        await Bun.write(filePath, buffer)
+
+        const previous = db.query("SELECT image_url FROM car_images WHERE car_name = ?").get(body.carName) as { image_url?: string } | null
+        if (previous?.image_url && previous.image_url.startsWith('/car-images/')) {
+          const previousFile = join(carImagesPath, previous.image_url.replace('/car-images/', ''))
+          if (previousFile !== filePath) {
+            await unlink(previousFile).catch(() => undefined)
+          }
+        }
+
+        const localUrl = `/car-images/${filename}`
+
         const stmt = db.prepare(
           "INSERT INTO car_images (car_name, image_url, confirmed_at) VALUES (?, ?, ?) ON CONFLICT(car_name) DO UPDATE SET image_url = ?, confirmed_at = ?"
         )
-        stmt.run(body.carName, body.imageUrl, Date.now(), body.imageUrl, Date.now())
+        stmt.run(body.carName, localUrl, Date.now(), localUrl, Date.now())
 
         return new Response(JSON.stringify({ ok: true }), {
           headers: { 'Content-Type': 'application/json' }
@@ -558,7 +619,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
   }
 }
 
-const port = parseInt(process.env.DASHBOARD_PORT || '34234', 10)
+const port = parseInt(process.env.API_PORT || process.env.DASHBOARD_PORT || '34234', 10)
 
 const server = Bun.serve({
   host: '0.0.0.0',
@@ -566,6 +627,11 @@ const server = Bun.serve({
   async fetch(req) {
     const url = new URL(req.url)
     const pathname = url.pathname
+
+    if (pathname.startsWith('/car-images/')) {
+      const imageResponse = await serveCarImage(pathname)
+      if (imageResponse) return imageResponse
+    }
 
     // Try serving API routes first
     for (const [route, handler] of Object.entries(handlers)) {
