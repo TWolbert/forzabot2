@@ -22,7 +22,7 @@ export function Leaderboard() {
       .catch(err => console.error(err))
       .finally(() => setLoading(false))
     
-    getCachedCarImage('McLaren Sabre')
+    getCachedCarImage('McLaren P1')
       .then(setCarImage)
       .catch(err => console.error('Failed to fetch car image:', err))
   }, [])

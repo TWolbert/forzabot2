@@ -10,7 +10,7 @@ const PROMO_CARS = [
   'Porsche 911 Turbo',
   'McLaren 720S',
   'Chevrolet Corvette',
-  'McLaren Sabre'
+  'McLaren P1'
 ]
 
 export function Home() {
