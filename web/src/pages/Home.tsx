@@ -9,7 +9,8 @@ const PROMO_CARS = [
   'Bugatti Veyron',
   'Porsche 911 Turbo',
   'McLaren 720S',
-  'Chevrolet Corvette'
+  'Chevrolet Corvette',
+  'McLaren Sabre'
 ]
 
 export function Home() {
@@ -110,8 +111,19 @@ export function Home() {
           <Link
             to="/leaderboard"
             className="group relative overflow-hidden rounded-xl shadow-2xl h-48 cursor-pointer transform transition hover:scale-105 border-4 border-green-500"
+            style={{
+              backgroundImage: 'linear-gradient(135deg, rgb(34, 197, 94) 0%, rgb(5, 150, 105) 100%)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            }}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-700"></div>
+            {carImages[PROMO_CARS[6]] && (
+              <img
+                src={carImages[PROMO_CARS[6]]}
+                alt={PROMO_CARS[6]}
+                className="absolute right-0 top-0 h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity"
+              />
+            )}
             <div className="absolute inset-0 opacity-30" style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px)'}}></div>
             <div className="relative h-full flex flex-col items-center justify-center text-white p-6">
               <Trophy size={40} className="mb-2 drop-shadow-lg" />
