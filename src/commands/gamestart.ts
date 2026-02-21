@@ -73,6 +73,14 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
       try {
         const user = await client.users.fetch(player.id);
         avatarUrl = user.displayAvatarURL({ size: 256 });
+        
+        // Cache the avatar URL
+        if (avatarUrl) {
+          const upsertStmt = db.prepare(
+            "INSERT INTO discord_avatars (player_id, avatar_url, cached_at) VALUES (?, ?, ?) ON CONFLICT(player_id) DO UPDATE SET avatar_url = ?, cached_at = ?"
+          );
+          upsertStmt.run(player.id, avatarUrl, Date.now(), avatarUrl, Date.now());
+        }
       } catch (e) {
         // Silently fail, avatar just won't be shown
       }

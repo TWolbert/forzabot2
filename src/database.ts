@@ -51,6 +51,12 @@ export function initializeDatabase() {
       created_at INTEGER NOT NULL,
       FOREIGN KEY (race_id) REFERENCES races (id),
       FOREIGN KEY (player_id) REFERENCES players (id)
+    );
+    CREATE TABLE IF NOT EXISTS discord_avatars (
+      player_id TEXT PRIMARY KEY,
+      avatar_url TEXT NOT NULL,
+      cached_at INTEGER NOT NULL,
+      FOREIGN KEY (player_id) REFERENCES players (id)
     )
   `);
 

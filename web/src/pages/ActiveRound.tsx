@@ -7,6 +7,7 @@ interface Player {
   display_name: string
   car_name?: string
   car_image?: string
+  avatar_url?: string
 }
 
 interface ActiveRoundData {
@@ -89,11 +90,6 @@ export function ActiveRound() {
     fetchCarImages()
   }, [round])
 
-  const getDiscordAvatarUrl = (userId: string) => {
-    // Discord's default avatar URL based on user ID
-    return `https://cdn.discordapp.com/embed/avatars/${(BigInt(userId) >> BigInt(22)) % BigInt(6)}.png`
-  }
-
   const formatRaceType = (type: string) => {
     return type.charAt(0).toUpperCase() + type.slice(1)
   }
@@ -171,7 +167,6 @@ export function ActiveRound() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {round.players.map(player => {
             const carImage = carImages[player.car_name || '']
-            const discordAvatarUrl = getDiscordAvatarUrl(player.id)
             
             return (
               <div
@@ -192,11 +187,13 @@ export function ActiveRound() {
                 {/* Player Info */}
                 <div className="flex items-start gap-3">
                   {/* Discord Avatar */}
-                  <img
-                    src={discordAvatarUrl}
-                    alt={player.display_name}
-                    className="w-12 h-12 rounded-full border-2 border-orange-400 drop-shadow-lg flex-shrink-0"
-                  />
+                  {player.avatar_url && (
+                    <img
+                      src={player.avatar_url}
+                      alt={player.display_name}
+                      className="w-12 h-12 rounded-full border-2 border-orange-400 drop-shadow-lg flex-shrink-0"
+                    />
+                  )}
                   
                   <div className="flex-1 min-w-0">
                     <Link

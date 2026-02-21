@@ -245,7 +245,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         r.status,
         r.created_at
       FROM rounds r
-      WHERE r.status = 'pending' AND r.winner_id IS NULL
+      WHERE (r.status = 'pending' OR r.status = 'active') AND r.winner_id IS NULL
       LIMIT 1
     `).get()
 
@@ -257,10 +257,12 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       SELECT
         p.id,
         p.display_name,
-        cc.car_name
+        cc.car_name,
+        da.avatar_url
       FROM round_players rp
       JOIN players p ON rp.player_id = p.id
       LEFT JOIN car_choices cc ON rp.round_id = cc.round_id AND rp.player_id = cc.player_id
+      LEFT JOIN discord_avatars da ON p.id = da.player_id
       WHERE rp.round_id = ?
       ORDER BY p.display_name ASC
     `).all(result.id)
