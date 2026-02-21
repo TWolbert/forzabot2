@@ -28,9 +28,19 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
 
   // Save round to database
   const roundStmt = db.prepare(
-    "INSERT INTO rounds (id, class, value, race_type, year, status, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO rounds (id, class, value, race_type, year, status, restrict_class, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
-  roundStmt.run(roundId, carClass, value, raceType, year, "pending", Date.now(), interaction.user.id);
+  roundStmt.run(
+    roundId,
+    carClass,
+    value,
+    raceType,
+    year,
+    "pending",
+    restrictClass ? 1 : 0,
+    Date.now(),
+    interaction.user.id
+  );
 
   // Save players and link to round
   const playerStmt = db.prepare(
@@ -60,12 +70,16 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
 
   const embed = new EmbedBuilder()
     .setTitle("Forza Round")
-    .setColor(CLASS_COLORS[carClass])
-    .addFields(
-      { name: "Class", value: carClass, inline: true },
-      { name: "Value", value: formatCurrency(value), inline: true },
-      { name: "Race Type", value: raceType, inline: true }
-    );
+    .setColor(CLASS_COLORS[carClass]);
+
+  if (restrictClass) {
+    embed.addFields({ name: "Class", value: carClass, inline: true });
+  }
+
+  embed.addFields(
+    { name: "Value", value: formatCurrency(value), inline: true },
+    { name: "Race Type", value: raceType, inline: true }
+  );
 
   if (year) {
     embed.addFields({ name: "Year", value: year.toString(), inline: true });

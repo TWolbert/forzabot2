@@ -11,6 +11,7 @@ export function initializeDatabase() {
       race_type TEXT NOT NULL,
       year INTEGER,
       status TEXT NOT NULL DEFAULT 'pending',
+      restrict_class INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS players (
@@ -57,6 +58,11 @@ export function initializeDatabase() {
       avatar_url TEXT NOT NULL,
       cached_at INTEGER NOT NULL,
       FOREIGN KEY (player_id) REFERENCES players (id)
+    );
+    CREATE TABLE IF NOT EXISTS car_images (
+      car_name TEXT PRIMARY KEY,
+      image_url TEXT NOT NULL,
+      confirmed_at INTEGER NOT NULL
     )
   `);
 
@@ -72,6 +78,20 @@ export function initializeDatabase() {
     db.exec(`ALTER TABLE rounds ADD COLUMN winner_id TEXT`);
   } catch (e) {
     // Column already exists, ignore
+  }
+
+  // Add restrict_class column to existing rounds table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE rounds ADD COLUMN restrict_class INTEGER NOT NULL DEFAULT 1`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  // Add car_images table for confirmed car images if it doesn't exist
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS car_images (car_name TEXT PRIMARY KEY, image_url TEXT NOT NULL, confirmed_at INTEGER NOT NULL)`);
+  } catch (e) {
+    // Table already exists, ignore
   }
 
   // Add created_by column to existing rounds table if it doesn't exist

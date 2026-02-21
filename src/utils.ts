@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { RACE_ICON_DIR, USER_AGENT } from "./constants";
+import { db } from "./database";
 
 export interface CarData {
   name: string;
@@ -227,6 +228,15 @@ export const getRaceIconPath = async (raceType: string): Promise<string | null> 
 };
 
 export const getTopCarImage = async (carName: string): Promise<string | null> => {
+  try {
+    const confirmed = db.query("SELECT image_url FROM car_images WHERE car_name = ?").get(carName) as { image_url?: string } | null;
+    if (confirmed?.image_url) {
+      return confirmed.image_url;
+    }
+  } catch (error) {
+    console.warn(`Failed to read confirmed image for ${carName}:`, error);
+  }
+
   const baseUrl = "https://forza.fandom.com/api.php";
 
   const searchUrl = new URL(baseUrl);

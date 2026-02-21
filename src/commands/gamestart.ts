@@ -6,7 +6,7 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
   // Get the most recent pending round
   const round = db.query(
     "SELECT * FROM rounds WHERE status = 'pending' ORDER BY created_at DESC LIMIT 1"
-  ).get() as { id: string; class: string; value: number; race_type: string; year: number | null; created_by: string } | null;
+  ).get() as { id: string; class: string; value: number; race_type: string; year: number | null; created_by: string; restrict_class: number | null } | null;
 
   if (!round) {
     await interaction.reply({ content: "No pending round found. Please start a round first with `/startround`.", ephemeral: true });
@@ -44,12 +44,16 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
 
   const embed = new EmbedBuilder()
     .setTitle("🏁 Game Starting!")
-    .setColor(allChosen ? 0x00ff00 : 0xffaa00)
-    .addFields(
-      { name: "Class", value: round.class, inline: true },
-      { name: "Value", value: formatCurrency(round.value), inline: true },
-      { name: "Race Type", value: round.race_type, inline: true }
-    );
+    .setColor(allChosen ? 0x00ff00 : 0xffaa00);
+
+  if (round.restrict_class !== 0) {
+    embed.addFields({ name: "Class", value: round.class, inline: true });
+  }
+
+  embed.addFields(
+    { name: "Value", value: formatCurrency(round.value), inline: true },
+    { name: "Race Type", value: round.race_type, inline: true }
+  );
 
   if (round.year) {
     embed.addFields({ name: "Year", value: round.year.toString(), inline: true });
@@ -185,12 +189,16 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
         .setTitle("🏆 Game Finished!")
         .setDescription(`**Winner: <@${winnerId}>**`)
         .setColor(0xffd700)
-        .addFields(
-          { name: "Winning Car", value: `**${winnerCar}**`, inline: false },
-          { name: "Class", value: round.class, inline: true },
-          { name: "Value", value: formatCurrency(round.value), inline: true },
-          { name: "Race Type", value: round.race_type, inline: true }
-        );
+        .addFields({ name: "Winning Car", value: `**${winnerCar}**`, inline: false });
+
+      if (round.restrict_class !== 0) {
+        finalEmbed.addFields({ name: "Class", value: round.class, inline: true });
+      }
+
+      finalEmbed.addFields(
+        { name: "Value", value: formatCurrency(round.value), inline: true },
+        { name: "Race Type", value: round.race_type, inline: true }
+      );
 
       if (playerAvatarUrl) {
         finalEmbed.setThumbnail(playerAvatarUrl);

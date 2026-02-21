@@ -14,6 +14,7 @@ interface Player {
 interface ActiveRoundData {
   id: string
   class: string
+  restrict_class?: number
   value: number
   race_type: string
   year?: number
@@ -115,10 +116,19 @@ export function ActiveRound() {
     fetchCarImages()
   }, [round, playerImageIndex])
 
-  const handleRetryImage = (playerId: string) => {
+  const handleRetryImage = async (playerId: string) => {
     const carName = round?.players.find(player => player.id === playerId)?.car_name
     if (carName) {
       localStorage.removeItem(getConfirmedKey(carName))
+      try {
+        await fetch('/api/car-image/confirm', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ carName })
+        })
+      } catch (error) {
+        console.error('Failed to clear confirmed image:', error)
+      }
     }
     setPlayerImageIndex(prev => ({
       ...prev,
@@ -130,11 +140,20 @@ export function ActiveRound() {
     }))
   }
 
-  const handleConfirmImage = (playerId: string) => {
+  const handleConfirmImage = async (playerId: string) => {
     const carName = round?.players.find(player => player.id === playerId)?.car_name
     const imageUrl = playerCarImages[playerId]
     if (carName && imageUrl) {
       localStorage.setItem(getConfirmedKey(carName), imageUrl)
+      try {
+        await fetch('/api/car-image/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ carName, imageUrl })
+        })
+      } catch (error) {
+        console.error('Failed to confirm image:', error)
+      }
     }
     setConfirmedImages(prev => ({
       ...prev,
@@ -142,7 +161,7 @@ export function ActiveRound() {
     }))
   }
 
-  const handleManualImage = (playerId: string) => {
+  const handleManualImage = async (playerId: string) => {
     const carName = round?.players.find(player => player.id === playerId)?.car_name
     if (!carName) return
 
@@ -153,6 +172,15 @@ export function ActiveRound() {
     if (!imageUrl) return
 
     localStorage.setItem(getConfirmedKey(carName), imageUrl)
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName, imageUrl })
+      })
+    } catch (error) {
+      console.error('Failed to confirm image:', error)
+    }
     setPlayerCarImages(prev => ({
       ...prev,
       [playerId]: imageUrl
@@ -214,10 +242,12 @@ export function ActiveRound() {
             {formatRaceType(round.race_type)}
           </p>
         </div>
-        <div className="bg-gray-800 p-4 rounded-lg border-2 border-orange-500">
-          <p className="text-xs font-black text-orange-400 uppercase mb-1">Class</p>
-          <p className="text-2xl font-black text-white drop-shadow-lg">{round.class || 'N/A'}</p>
-        </div>
+        {round.restrict_class !== 0 && (
+          <div className="bg-gray-800 p-4 rounded-lg border-2 border-orange-500">
+            <p className="text-xs font-black text-orange-400 uppercase mb-1">Class</p>
+            <p className="text-2xl font-black text-white drop-shadow-lg">{round.class || 'N/A'}</p>
+          </div>
+        )}
         <div className="bg-gray-800 p-4 rounded-lg border-2 border-orange-500">
           <p className="text-xs font-black text-orange-400 uppercase mb-1">Value</p>
           <p className="text-2xl font-black text-white drop-shadow-lg">

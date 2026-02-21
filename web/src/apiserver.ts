@@ -98,6 +98,13 @@ async function getWikipediaCarImage(carName: string, index = 0): Promise<string 
 
 // Get car image with fallback sources
 async function getTopCarImage(carName: string, index = 0): Promise<string | null> {
+  try {
+    const confirmed = db.query("SELECT image_url FROM car_images WHERE car_name = ?").get(carName) as { image_url?: string } | null
+    if (confirmed?.image_url) return confirmed.image_url
+  } catch (error) {
+    console.warn(`Failed to read confirmed image for ${carName}:`, error)
+  }
+
   const fandomImage = await getFandomCarImage(carName, index)
   if (fandomImage) return fandomImage
   return getWikipediaCarImage(carName, index)
@@ -249,6 +256,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       SELECT
         r.id,
         r.class,
+        r.restrict_class,
         r.value,
         r.race_type,
         r.year,
@@ -287,6 +295,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       SELECT
         r.id,
         r.class,
+        r.restrict_class,
         r.value,
         r.race_type,
         r.year,
@@ -429,6 +438,50 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         headers: { 'Content-Type': 'application/json' }
       })
     }
+  },
+
+  // Confirm or clear car image
+  '/api/car-image/confirm': async (req) => {
+    if (req.method === 'POST') {
+      try {
+        const body = await req.json() as { carName?: string; imageUrl?: string }
+        if (!body?.carName || !body?.imageUrl) {
+          return new Response(JSON.stringify({ error: 'Missing carName or imageUrl' }), { status: 400 })
+        }
+
+        const stmt = db.prepare(
+          "INSERT INTO car_images (car_name, image_url, confirmed_at) VALUES (?, ?, ?) ON CONFLICT(car_name) DO UPDATE SET image_url = ?, confirmed_at = ?"
+        )
+        stmt.run(body.carName, body.imageUrl, Date.now(), body.imageUrl, Date.now())
+
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+      } catch (error) {
+        console.error('Error confirming car image:', error)
+        return new Response(JSON.stringify({ error: 'Failed to confirm image' }), { status: 500 })
+      }
+    }
+
+    if (req.method === 'DELETE') {
+      try {
+        const body = await req.json() as { carName?: string }
+        if (!body?.carName) {
+          return new Response(JSON.stringify({ error: 'Missing carName' }), { status: 400 })
+        }
+
+        db.prepare("DELETE FROM car_images WHERE car_name = ?").run(body.carName)
+
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+      } catch (error) {
+        console.error('Error clearing car image:', error)
+        return new Response(JSON.stringify({ error: 'Failed to clear image' }), { status: 500 })
+      }
+    }
+
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
   }
 }
 

@@ -19,6 +19,7 @@ interface Game {
   num_players: number
   created_at: string
   class?: string
+  restrict_class?: number
   value?: number
   year?: number
   players?: Player[]
@@ -230,10 +231,12 @@ export function GameDetail() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-gray-800 p-4 rounded-lg border-2 border-yellow-500">
-            <p className="text-xs font-black text-yellow-400 uppercase">Class</p>
-            <p className="text-2xl font-black text-white drop-shadow-lg">{selectedGame.class || 'N/A'}</p>
-          </div>
+          {selectedGame.restrict_class !== 0 && (
+            <div className="bg-gray-800 p-4 rounded-lg border-2 border-yellow-500">
+              <p className="text-xs font-black text-yellow-400 uppercase">Class</p>
+              <p className="text-2xl font-black text-white drop-shadow-lg">{selectedGame.class || 'N/A'}</p>
+            </div>
+          )}
           <div className="bg-gray-800 p-4 rounded-lg border-2 border-yellow-500">
             <p className="text-xs font-black text-yellow-400 uppercase">Value Range</p>
             <p className="text-2xl font-black text-white drop-shadow-lg">
