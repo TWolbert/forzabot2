@@ -19,6 +19,8 @@ export function Home() {
   const [hasActiveRound, setHasActiveRound] = useState(false)
   const [activeRoundImage, setActiveRoundImage] = useState<string | null>(null)
   const [activeRoundPlayers, setActiveRoundPlayers] = useState<Array<{ id: string; avatar_url?: string }>>([])
+  const [fastestLapImage, setFastestLapImage] = useState<string | null>(null)
+  const [fastestLapCar, setFastestLapCar] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchCarImages = async () => {
@@ -38,6 +40,34 @@ export function Home() {
     }
 
     fetchCarImages()
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+
+    const fetchFastestLap = async () => {
+      try {
+        const response = await fetch('/api/fastest-time')
+        if (!response.ok) return
+        const data = await response.json()
+        const carName = data?.car_name as string | undefined
+        if (!carName) return
+
+        const imageUrl = await getCachedCarImage(carName)
+        if (!mounted) return
+        setFastestLapCar(carName)
+        setFastestLapImage(imageUrl)
+      } catch (error) {
+        if (mounted) {
+          console.error('Failed to fetch fastest lap time:', error)
+        }
+      }
+    }
+
+    fetchFastestLap()
+    return () => {
+      mounted = false
+    }
   }, [])
 
   useEffect(() => {
@@ -213,10 +243,10 @@ export function Home() {
               backgroundPosition: 'center'
             }}
           >
-            {carImages[PROMO_CARS[1]] && (
+            {(fastestLapImage || carImages[PROMO_CARS[1]]) && (
               <img
-                src={carImages[PROMO_CARS[1]]}
-                alt={PROMO_CARS[1]}
+                src={fastestLapImage || carImages[PROMO_CARS[1]] || ''}
+                alt={fastestLapCar || PROMO_CARS[1]}
                 className="absolute right-0 top-0 h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity"
               />
             )}

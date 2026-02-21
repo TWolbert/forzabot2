@@ -374,6 +374,30 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     })
   },
 
+  // Fastest lap time (current best)
+  '/api/fastest-time': () => {
+    const result = db.query(`
+      SELECT
+        t.id,
+        t.car_name,
+        t.laptime as time_ms,
+        r.name as race_name
+      FROM times t
+      JOIN races r ON t.race_id = r.id
+      WHERE t.is_historic = 0
+      ORDER BY t.laptime ASC
+      LIMIT 1
+    `).get()
+
+    if (!result) {
+      return new Response(JSON.stringify({ error: 'No times found' }), { status: 404 })
+    }
+
+    return new Response(JSON.stringify(result), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
   // Individual time details
   '/api/times/:id': (req) => {
     const url = new URL(req.url)
