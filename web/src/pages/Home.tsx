@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Trophy, Gamepad2, Clock } from 'lucide-react'
+import logo from '../5a59366f-e744-498c-9142-270c4f2069d1.png'
 
 export function Home() {
   return (
@@ -10,8 +11,9 @@ export function Home() {
           <div className="absolute inset-0 bg-black transform -skew-y-3" style={{backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,100,0,0.5) 0%, transparent 50%)'}}></div>
         </div>
         <div className="relative h-full flex items-center justify-center">
-          <div className="text-center text-white">
-            <h1 className="text-7xl font-black mb-4 drop-shadow-lg">🏁 FORZABOT</h1>
+          <div className="text-center text-white flex flex-col items-center gap-4">
+            <img src={logo} alt="ForzaBot Logo" className="h-32 drop-shadow-2xl" />
+            <h1 className="text-6xl font-black drop-shadow-lg">FORZABOT</h1>
             <p className="text-2xl font-bold drop-shadow-lg">Racing Statistics Dashboard</p>
           </div>
         </div>
@@ -35,7 +37,7 @@ export function Home() {
 
           {/* Small Leaderboard Tile */}
           <Link
-            to="/"
+            to="/leaderboard"
             className="group relative overflow-hidden rounded-xl shadow-2xl h-48 cursor-pointer transform transition hover:scale-105"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-700"></div>

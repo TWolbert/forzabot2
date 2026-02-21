@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Home, Trophy, Gamepad2, Clock } from 'lucide-react'
+import logo from '../5a59366f-e744-498c-9142-270c4f2069d1.png'
 
 export function Navigation() {
   const location = useLocation()
@@ -12,10 +13,10 @@ export function Navigation() {
   return (
     <nav className="bg-gradient-to-r from-red-700 via-orange-600 to-yellow-600 text-white shadow-2xl border-b-4 border-orange-400">
       <div className="max-w-7xl mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 text-3xl font-black hover:opacity-80 transition">
-            <span>🏁</span>
-            <span>FORZABOT</span>
+        <div className="flex items-center justify-between gap-6">
+          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition">
+            <img src={logo} alt="ForzaBot Logo" className="h-12" />
+            <span className="text-2xl font-black hidden sm:inline">FORZABOT</span>
           </Link>
           
           <div className="flex gap-1">
