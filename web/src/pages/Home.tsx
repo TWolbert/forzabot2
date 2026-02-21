@@ -140,7 +140,7 @@ export function Home() {
         </div>
         <div className="relative h-full flex items-center justify-center">
           <div className="text-center text-white flex flex-col items-center gap-4">
-            <img src={logo} alt="ForzaBot Logo" className="h-[90%] drop-shadow-2xl" />
+            <img src={logo} alt="ForzaBot Logo" className="h-[60%] drop-shadow-2xl" />
           </div>
         </div>
       </div>
