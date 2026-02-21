@@ -8,19 +8,29 @@ export function Navigation() {
   const [hasActiveRound, setHasActiveRound] = useState(false)
 
   useEffect(() => {
+    let mounted = true
+    
     const checkActiveRound = async () => {
       try {
         const response = await fetch('/api/current-round')
-        setHasActiveRound(response.ok)
+        if (mounted) {
+          setHasActiveRound(response.ok)
+        }
       } catch (error) {
-        setHasActiveRound(false)
+        if (mounted) {
+          setHasActiveRound(false)
+        }
       }
     }
 
     checkActiveRound()
     // Check every 5 seconds for active round status
     const interval = setInterval(checkActiveRound, 5000)
-    return () => clearInterval(interval)
+    
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
   }, [])
 
   const isActive = (path: string) => {

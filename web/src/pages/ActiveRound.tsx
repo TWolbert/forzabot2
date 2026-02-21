@@ -6,6 +6,7 @@ interface Player {
   id: string
   display_name: string
   car_name?: string
+  car_image?: string
 }
 
 interface ActiveRoundData {
@@ -22,36 +23,83 @@ interface ActiveRoundData {
 export function ActiveRound() {
   const [round, setRound] = useState<ActiveRoundData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [carImages, setCarImages] = useState<Record<string, string | null>>({})
 
   useEffect(() => {
+    let mounted = true
+    
     const fetchActiveRound = async () => {
-      setLoading(true)
       try {
         const response = await fetch('/api/current-round')
+        if (!mounted) return
+        
         if (!response.ok) {
           throw new Error('No active round')
         }
         const data = await response.json()
-        setRound(data)
-      } catch (error) {
-        console.error('Failed to fetch active round:', error)
-      } finally {
+        
+        // Only update state if data has changed
+        setRound(prevRound => {
+          if (!prevRound || JSON.stringify(prevRound) !== JSON.stringify(data)) {
+            return data
+          }
+          return prevRound
+        })
+        
         setLoading(false)
+      } catch (error) {
+        if (mounted) {
+          console.error('Failed to fetch active round:', error)
+          setLoading(false)
+        }
       }
     }
 
     fetchActiveRound()
     // Poll every 5 seconds to update if round ends
     const interval = setInterval(fetchActiveRound, 5000)
-    return () => clearInterval(interval)
+    
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
   }, [])
+
+  useEffect(() => {
+    if (!round) return
+
+    const fetchCarImages = async () => {
+      const images: Record<string, string | null> = {}
+      
+      for (const player of round.players) {
+        if (!player.car_name || images[player.car_name]) continue
+        try {
+          const response = await fetch(`/api/car-image/${encodeURIComponent(player.car_name)}`)
+          const data = await response.json()
+          images[player.car_name] = data.imageUrl
+        } catch (error) {
+          console.error(`Failed to fetch image for ${player.car_name}:`, error)
+          images[player.car_name] = null
+        }
+      }
+      
+      setCarImages(images)
+    }
+
+    fetchCarImages()
+  }, [round])
+
+  const getDiscordAvatarUrl = (userId: string) => {
+    // Discord's default avatar URL based on user ID
+    return `https://cdn.discordapp.com/embed/avatars/${(BigInt(userId) >> BigInt(22)) % BigInt(6)}.png`
+  }
 
   const formatRaceType = (type: string) => {
     return type.charAt(0).toUpperCase() + type.slice(1)
   }
 
   const formatCurrency = (value: number) => {
-    return `$${(value / 1_000_000).toFixed(1)}M`
+    return `$${value.toLocaleString()}`
   }
 
   if (loading) {
@@ -120,25 +168,53 @@ export function ActiveRound() {
           Competing
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {round.players.map(player => (
-            <div
-              key={player.id}
-              className="bg-gray-800 p-4 rounded-lg border-4 border-orange-500 hover:bg-gray-700 transform transition drop-shadow-lg"
-            >
-              <Link
-                to={`/players/${player.id}`}
-                className="font-black text-orange-300 hover:text-orange-200 text-lg mb-2 block hover:underline transition"
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {round.players.map(player => {
+            const carImage = carImages[player.car_name || '']
+            const discordAvatarUrl = getDiscordAvatarUrl(player.id)
+            
+            return (
+              <div
+                key={player.id}
+                className="bg-gray-800 p-4 rounded-lg border-4 border-orange-500 hover:bg-gray-700 transform transition hover:scale-105 drop-shadow-lg"
               >
-                {player.display_name}
-              </Link>
-              {player.car_name ? (
-                <p className="text-sm text-gray-400 font-bold">🏎️ {player.car_name}</p>
-              ) : (
-                <p className="text-sm text-gray-500 font-bold italic">Car to be chosen...</p>
-              )}
-            </div>
-          ))}
+                {/* Car Image */}
+                {carImage && (
+                  <div className="mb-3 -mx-4 -mt-4">
+                    <img
+                      src={carImage}
+                      alt={player.car_name}
+                      className="w-full h-32 object-cover rounded-t-lg border-b-2 border-orange-500"
+                    />
+                  </div>
+                )}
+
+                {/* Player Info */}
+                <div className="flex items-start gap-3">
+                  {/* Discord Avatar */}
+                  <img
+                    src={discordAvatarUrl}
+                    alt={player.display_name}
+                    className="w-12 h-12 rounded-full border-2 border-orange-400 drop-shadow-lg flex-shrink-0"
+                  />
+                  
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      to={`/players/${player.id}`}
+                      className="font-black text-orange-300 hover:text-orange-200 text-base mb-1 block hover:underline transition truncate"
+                    >
+                      {player.display_name}
+                    </Link>
+                    {player.car_name ? (
+                      <p className="text-sm text-gray-400 font-bold truncate">🏎️ {player.car_name}</p>
+                    ) : (
+                      <p className="text-sm text-gray-500 font-bold italic">Car to be chosen...</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 

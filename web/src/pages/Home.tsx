@@ -21,9 +21,22 @@ export function Home() {
       
       for (const car of PROMO_CARS) {
         try {
+          // Check cache first
+          const cached = localStorage.getItem(`car-image-${car}`)
+          if (cached) {
+            images[car] = cached
+            continue
+          }
+          
           const response = await fetch(`/api/car-image/${encodeURIComponent(car)}`)
           const data = await response.json()
-          images[car] = data.imageUrl
+          const imageUrl = data.imageUrl
+          images[car] = imageUrl
+          
+          // Cache for 7 days
+          if (imageUrl) {
+            localStorage.setItem(`car-image-${car}`, imageUrl)
+          }
         } catch (error) {
           console.error(`Failed to fetch image for ${car}:`, error)
           images[car] = null
@@ -74,13 +87,18 @@ export function Home() {
             to="/games"
             className="md:col-span-2 md:row-span-2 group relative overflow-hidden rounded-xl shadow-2xl h-96 cursor-pointer transform transition hover:scale-105 border-4 border-yellow-500"
             style={{
-              backgroundImage: carImages[PROMO_CARS[0]] 
-                ? `linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%), url('${carImages[PROMO_CARS[0]]}')` 
-                : 'linear-gradient(135deg, rgb(250, 204, 21) 0%, rgb(217, 119, 6) 100%)',
+              backgroundImage: 'linear-gradient(135deg, rgb(250, 204, 21) 0%, rgb(217, 119, 6) 100%)',
               backgroundSize: 'cover',
               backgroundPosition: 'center'
             }}
           >
+            {carImages[PROMO_CARS[0]] && (
+              <img
+                src={carImages[PROMO_CARS[0]]}
+                alt={PROMO_CARS[0]}
+                className="absolute right-0 top-0 h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity"
+              />
+            )}
             <div className="absolute inset-0 opacity-30" style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px)'}}></div>
             <div className="relative h-full flex flex-col items-center justify-center text-white p-8">
               <Trophy size={80} className="mb-4 drop-shadow-2xl" />
@@ -104,15 +122,20 @@ export function Home() {
           {/* Lap Times Tile with Car Background */}
           <Link
             to="/times"
-            className="group relative overflow-hidden rounded-xl shadow-2xl h-48 cursor-pointer transform transition hover:scale-105 border-4 border-blue-500"
+            className="group relative overflow-hidden rounded-xl shadow-2xl h-48 cursor-pointer transform transition hover:scale-105 border-4 border-cyan-500"
             style={{
-              backgroundImage: carImages[PROMO_CARS[1]] 
-                ? `linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%), url('${carImages[PROMO_CARS[1]]}')` 
-                : 'linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(6, 182, 212) 100%)',
+              backgroundImage: 'linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(6, 182, 212) 100%)',
               backgroundSize: 'cover',
               backgroundPosition: 'center'
             }}
           >
+            {carImages[PROMO_CARS[1]] && (
+              <img
+                src={carImages[PROMO_CARS[1]]}
+                alt={PROMO_CARS[1]}
+                className="absolute right-0 top-0 h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity"
+              />
+            )}
             <div className="absolute inset-0 opacity-30" style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px)'}}></div>
             <div className="relative h-full flex flex-col items-center justify-center text-white p-6">
               <Clock size={40} className="mb-2 drop-shadow-lg" />
@@ -125,13 +148,18 @@ export function Home() {
             to="/games"
             className="group relative overflow-hidden rounded-xl shadow-2xl h-48 cursor-pointer transform transition hover:scale-105 border-4 border-purple-500"
             style={{
-              backgroundImage: carImages[PROMO_CARS[2]] 
-                ? `linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%), url('${carImages[PROMO_CARS[2]]}')` 
-                : 'linear-gradient(135deg, rgb(168, 85, 247) 0%, rgb(190, 24, 93) 100%)',
+              backgroundImage: 'linear-gradient(135deg, rgb(168, 85, 247) 0%, rgb(190, 24, 93) 100%)',
               backgroundSize: 'cover',
               backgroundPosition: 'center'
             }}
           >
+            {carImages[PROMO_CARS[2]] && (
+              <img
+                src={carImages[PROMO_CARS[2]]}
+                alt={PROMO_CARS[2]}
+                className="absolute right-0 top-0 h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity"
+              />
+            )}
             <div className="absolute inset-0 opacity-30" style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px)'}}></div>
             <div className="relative h-full flex flex-col items-center justify-center text-white p-6">
               <Gamepad2 size={40} className="mb-2 drop-shadow-lg" />

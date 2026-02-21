@@ -107,7 +107,7 @@ export function LapTimes() {
                 <Link
                   key={time.id}
                   to={`/times/${time.id}`}
-                  className="group relative overflow-hidden rounded-xl shadow-2xl h-64 cursor-pointer transform transition hover:scale-105 border-4 border-cyan-500"
+                  className="group relative overflow-hidden rounded-xl shadow-2xl aspect-video cursor-pointer transform transition hover:scale-105 border-4 border-cyan-500"
                   style={{
                     backgroundImage: imageUrl
                       ? `linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%), url('${imageUrl}')`
