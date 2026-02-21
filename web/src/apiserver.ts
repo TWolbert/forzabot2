@@ -642,7 +642,17 @@ const server = Bun.serve({
   port,
   async fetch(req) {
     const url = new URL(req.url)
-    const pathname = url.pathname
+    let pathname = url.pathname
+
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      pathname = pathname.slice(0, -1)
+    }
+
+    console.log('[api] request', {
+      method: req.method,
+      pathname,
+      search: url.search
+    })
 
     if (pathname.startsWith('/car-images/')) {
       const imageResponse = await serveCarImage(pathname)
