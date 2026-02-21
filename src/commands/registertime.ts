@@ -143,26 +143,24 @@ export async function handleRegisterTime(interaction: ChatInputCommandInteractio
         return;
       }
 
-      // Check if time already exists for this player, race, and car
+      // Check if current time already exists for this player, race, and car
       const existing = db.query(
-        "SELECT id FROM times WHERE race_id = ? AND player_id = ? AND car_name = ?"
-      ).get(race.id, i.user.id, selectedCar) as { id: number } | null;
+        "SELECT COUNT(1) as count FROM times WHERE race_id = ? AND player_id = ? AND car_name = ? AND is_historic = 0"
+      ).get(race.id, i.user.id, selectedCar) as { count: number } | null;
 
-      let isUpdate = false;
-      if (existing) {
-        // Update existing time
-        const updateStmt = db.prepare(
-          "UPDATE times SET laptime = ?, created_at = ? WHERE id = ?"
+      const isUpdate = (existing?.count ?? 0) > 0;
+      if (isUpdate) {
+        const markHistoric = db.prepare(
+          "UPDATE times SET is_historic = 1 WHERE race_id = ? AND player_id = ? AND car_name = ? AND is_historic = 0"
         );
-        updateStmt.run(laptime, Date.now(), existing.id);
-        isUpdate = true;
-      } else {
-        // Insert new time
-        const timeStmt = db.prepare(
-          "INSERT INTO times (race_id, player_id, car_name, laptime, created_at) VALUES (?, ?, ?, ?, ?)"
-        );
-        timeStmt.run(race.id, i.user.id, selectedCar, laptime, Date.now());
+        markHistoric.run(race.id, i.user.id, selectedCar);
       }
+
+      // Insert new time
+      const timeStmt = db.prepare(
+        "INSERT INTO times (race_id, player_id, car_name, laptime, is_historic, created_at) VALUES (?, ?, ?, ?, 0, ?)"
+      );
+      timeStmt.run(race.id, i.user.id, selectedCar, laptime, Date.now());
 
       // Format laptime for display
       const minutes = Math.floor(laptime / 60000);

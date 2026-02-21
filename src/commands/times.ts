@@ -36,6 +36,7 @@ export async function handleTimes(interaction: ChatInputCommandInteraction) {
     JOIN races r ON t.race_id = r.id
     JOIN players p ON t.player_id = p.id
     WHERE 1=1
+      AND t.is_historic = 0
   `;
   const params: any[] = [];
 

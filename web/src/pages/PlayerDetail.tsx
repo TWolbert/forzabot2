@@ -1,7 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Loader, ChevronLeft, Trophy, Clock, ChevronRight, ChevronDown } from 'lucide-react'
 import { getCachedCarImage } from '../utils/carImageCache'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Tooltip,
+  Legend
+} from 'chart.js'
+import { Bar, Line } from 'react-chartjs-2'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend)
 
 interface Player {
   id: string
@@ -48,6 +61,7 @@ export function PlayerDetail() {
   const [carsPage, setCarsPage] = useState(0)
   const [gamesPage, setGamesPage] = useState(0)
   const [gamesExpanded, setGamesExpanded] = useState(true)
+  const [selectedMap, setSelectedMap] = useState('')
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
 
   const formatTime = (ms: number) => {
@@ -107,6 +121,117 @@ export function PlayerDetail() {
   const GAMES_PER_PAGE = 10
   const paginatedGames = playerData?.games?.slice(gamesPage * GAMES_PER_PAGE, (gamesPage + 1) * GAMES_PER_PAGE) ?? []
   const gamesTotalPages = playerData?.games ? Math.ceil(playerData.games.length / GAMES_PER_PAGE) : 1
+
+  const mapOptions = useMemo(() => {
+    if (!playerData) return []
+    return Array.from(new Set(playerData.times.map(time => time.race_name))).sort()
+  }, [playerData])
+
+  useEffect(() => {
+    if (!selectedMap && mapOptions.length > 0) {
+      setSelectedMap(mapOptions[0])
+    }
+  }, [mapOptions, selectedMap])
+
+  const timesPerDay = useMemo(() => {
+    if (!playerData) return { labels: [], values: [] as number[] }
+
+    const counts = new Map<string, number>()
+    for (const time of playerData.times) {
+      const dayKey = new Date(time.created_at).toISOString().slice(0, 10)
+      counts.set(dayKey, (counts.get(dayKey) ?? 0) + 1)
+    }
+
+    const sortedKeys = Array.from(counts.keys()).sort()
+    const labels = sortedKeys.map(key => new Date(key).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
+    const values = sortedKeys.map(key => counts.get(key) ?? 0)
+
+    return { labels, values }
+  }, [playerData])
+
+  const mapProgression = useMemo(() => {
+    if (!playerData || !selectedMap) return { labels: [], values: [] as number[] }
+
+    const filtered = playerData.times
+      .filter(time => time.race_name === selectedMap)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+    return {
+      labels: filtered.map(time => formatDate(time.created_at)),
+      values: filtered.map(time => time.time_ms)
+    }
+  }, [playerData, selectedMap])
+
+  const timesPerDayData = {
+    labels: timesPerDay.labels,
+    datasets: [
+      {
+        label: 'Times per day',
+        data: timesPerDay.values,
+        backgroundColor: 'rgba(34, 211, 238, 0.35)',
+        borderColor: 'rgba(34, 211, 238, 0.9)',
+        borderWidth: 2
+      }
+    ]
+  }
+
+  const mapProgressionData = {
+    labels: mapProgression.labels,
+    datasets: [
+      {
+        label: selectedMap || 'Lap time progression',
+        data: mapProgression.values,
+        borderColor: 'rgba(59, 130, 246, 0.9)',
+        backgroundColor: 'rgba(59, 130, 246, 0.25)',
+        tension: 0.3,
+        pointRadius: 3
+      }
+    ]
+  }
+
+  const countChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false }
+    },
+    scales: {
+      x: {
+        ticks: { color: '#9CA3AF', font: { weight: '700' } },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      },
+      y: {
+        ticks: { color: '#9CA3AF', precision: 0 },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      }
+    }
+  }
+
+  const progressChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => `Lap Time: ${formatTime(Number(context.raw))}`
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color: '#9CA3AF', font: { weight: '700' } },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      },
+      y: {
+        ticks: {
+          color: '#9CA3AF',
+          callback: (value: string | number) => formatTime(Number(value))
+        },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      }
+    }
+  }
 
   useEffect(() => {
     if (!playerId) return
@@ -222,6 +347,45 @@ export function PlayerDetail() {
           </div>
         </div>
       </div>
+
+      {times.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-cyan-500 drop-shadow-2xl">
+            <h2 className="text-2xl font-black text-cyan-400 mb-4 uppercase drop-shadow-lg">Times Per Day</h2>
+            {timesPerDay.labels.length > 0 ? (
+              <div className="h-64">
+                <Bar data={timesPerDayData} options={countChartOptions} />
+              </div>
+            ) : (
+              <p className="text-gray-400 font-bold">No time trials recorded yet</p>
+            )}
+          </div>
+
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-blue-500 drop-shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h2 className="text-2xl font-black text-blue-400 uppercase drop-shadow-lg">Map Progression</h2>
+              <select
+                value={selectedMap}
+                onChange={event => setSelectedMap(event.target.value)}
+                className="bg-gray-900 border-2 border-blue-500 text-blue-200 text-sm font-black rounded-lg px-3 py-2 focus:outline-none focus:border-blue-300"
+              >
+                {mapOptions.map(map => (
+                  <option key={map} value={map}>
+                    {map}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedMap ? (
+              <div className="h-64">
+                <Line data={mapProgressionData} options={progressChartOptions} />
+              </div>
+            ) : (
+              <p className="text-gray-400 font-bold">No maps available</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Games */}
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-yellow-500 drop-shadow-2xl">

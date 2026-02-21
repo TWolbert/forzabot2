@@ -49,6 +49,7 @@ export function initializeDatabase() {
       player_id TEXT NOT NULL,
       car_name TEXT NOT NULL,
       laptime INTEGER NOT NULL,
+      is_historic INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       FOREIGN KEY (race_id) REFERENCES races (id),
       FOREIGN KEY (player_id) REFERENCES players (id)
@@ -83,6 +84,13 @@ export function initializeDatabase() {
   // Add restrict_class column to existing rounds table if it doesn't exist
   try {
     db.exec(`ALTER TABLE rounds ADD COLUMN restrict_class INTEGER NOT NULL DEFAULT 1`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  // Add is_historic column to existing times table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE times ADD COLUMN is_historic INTEGER NOT NULL DEFAULT 0`);
   } catch (e) {
     // Column already exists, ignore
   }
