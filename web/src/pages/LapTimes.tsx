@@ -188,7 +188,6 @@ export function LapTimes() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {paginatedTimes.map(time => {
               const imageUrl = carImages[time.car_name]
-              const isConfirmed = confirmedCars[time.car_name]
               return (
                 <Link
                   key={time.id}
@@ -208,49 +207,6 @@ export function LapTimes() {
                   {/* Content overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
-                  {!isConfirmed && (
-                    <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          handleRetryCar(time.car_name)
-                        }}
-                        className="bg-cyan-500/90 hover:bg-cyan-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
-                      >
-                        Retry
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          handleConfirmCar(time.car_name)
-                        }}
-                        className="bg-green-500/90 hover:bg-green-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          handleManualCar(time.car_name)
-                        }}
-                        className="bg-gray-900/90 hover:bg-gray-800 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
-                      >
-                        Set URL
-                      </button>
-                    </div>
-                  )}
-
-                  {isConfirmed && (
-                    <div className="absolute top-3 left-3 flex items-center justify-center bg-green-500/90 text-white text-xs font-black w-7 h-7 rounded-full shadow-lg">
-                      <Check size={14} />
-                    </div>
-                  )}
                   
                   <div className="relative h-full flex flex-col justify-between p-6 text-white">
                     {/* Top: Track and Time */}
