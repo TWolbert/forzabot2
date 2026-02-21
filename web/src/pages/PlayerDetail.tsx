@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, ChevronLeft, Trophy, Clock, ChevronRight, ChevronDown } from 'lucide-react'
+import { Loader, ChevronLeft, Trophy, Clock, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { getCachedCarImage } from '../utils/carImageCache'
 import {
   Chart as ChartJS,
