@@ -17,6 +17,7 @@ interface ActiveRoundData {
   restrict_class?: number
   value: number
   race_type: string
+  series_race?: string | null
   year?: number
   status: string
   created_at: string
@@ -243,6 +244,14 @@ export function ActiveRound() {
             {formatRaceType(round.race_type)}
           </p>
         </div>
+        {round.series_race && (
+          <div className="bg-gray-800 p-4 rounded-lg border-2 border-orange-500">
+            <p className="text-xs font-black text-orange-400 uppercase mb-1">Series Race</p>
+            <p className="text-2xl font-black text-white drop-shadow-lg">
+              {formatRaceType(round.series_race)}
+            </p>
+          </div>
+        )}
         {round.restrict_class !== 0 && (
           <div className="bg-gray-800 p-4 rounded-lg border-2 border-orange-500">
             <p className="text-xs font-black text-orange-400 uppercase mb-1">Class</p>

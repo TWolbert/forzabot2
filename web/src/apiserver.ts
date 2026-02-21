@@ -348,7 +348,32 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       ORDER BY rs.points DESC, p.display_name ASC
     `).all(result.id)
 
-    return new Response(JSON.stringify({ ...result, players, scores }), {
+    let seriesRace: string | null = null
+    if (result.race_type?.toLowerCase() === 'all') {
+      const baseSequence = ['drag', 'circuit', 'rally', 'goliath']
+      const completed = db.query(
+        "SELECT COUNT(DISTINCT race_index) as count FROM round_race_results WHERE round_id = ?"
+      ).get(result.id) as { count?: number } | null
+      const completedCount = completed?.count ?? 0
+
+      seriesRace = baseSequence[completedCount] ?? null
+
+      if (!seriesRace && completedCount === baseSequence.length) {
+        const topScore = db.query(
+          "SELECT points FROM round_scores WHERE round_id = ? ORDER BY points DESC LIMIT 1"
+        ).get(result.id) as { points?: number } | null
+        if (topScore?.points !== undefined) {
+          const tied = db.query(
+            "SELECT COUNT(*) as tied FROM round_scores WHERE round_id = ? AND points = ?"
+          ).get(result.id, topScore.points) as { tied?: number } | null
+          if ((tied?.tied ?? 0) > 1) {
+            seriesRace = 'offroad'
+          }
+        }
+      }
+    }
+
+    return new Response(JSON.stringify({ ...result, players, scores, series_race: seriesRace }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },

@@ -13,6 +13,9 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
     return;
   }
 
+  const isAllSeries = round.race_type.toLowerCase() === 'all';
+  const raceSequence = ['drag', 'circuit', 'rally', 'goliath'];
+
   // Get players for this round
   const roundPlayers = db.query(
     "SELECT p.id, p.username, p.display_name FROM players p JOIN round_players rp ON p.id = rp.player_id WHERE rp.round_id = ?"
@@ -54,6 +57,10 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
     { name: "Value", value: formatCurrency(round.value), inline: true },
     { name: "Race Type", value: round.race_type, inline: true }
   );
+
+  if (isAllSeries) {
+    embed.addFields({ name: "Series Race", value: raceSequence[0].toUpperCase(), inline: true });
+  }
 
   if (round.year) {
     embed.addFields({ name: "Year", value: round.year.toString(), inline: true });
@@ -105,9 +112,6 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
   // Update round status to active
   const updateStmt = db.prepare("UPDATE rounds SET status = 'active' WHERE id = ?");
   updateStmt.run(round.id);
-
-  const isAllSeries = round.race_type.toLowerCase() === 'all';
-  const raceSequence = ['drag', 'circuit', 'rally', 'goliath'];
 
   if (isAllSeries) {
     const scoreStmt = db.prepare(
