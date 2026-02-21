@@ -229,7 +229,7 @@ export const getRaceIconPath = async (raceType: string): Promise<string | null> 
 
 export const getTopCarImage = async (carName: string): Promise<string | null> => {
   try {
-    const confirmed = db.query("SELECT image_url FROM car_images WHERE car_name = ?").get(carName) as { image_url?: string } | null;
+    const confirmed = db.query("SELECT image_url FROM car_images WHERE lower(car_name) = lower(?)").get(carName) as { image_url?: string } | null;
     if (confirmed?.image_url) {
       return confirmed.image_url;
     }
