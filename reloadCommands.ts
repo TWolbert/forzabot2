@@ -136,6 +136,12 @@ const commands = [
     contexts: [0, 1, 2],
   },
   {
+    name: "resetround",
+    description: "Reset active rounds (Server recovery after reboot)",
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+  },
+  {
     name: "stats",
     description: "View player statistics and leaderboard",
     integration_types: [0, 1],

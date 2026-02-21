@@ -4,6 +4,7 @@ import { handleSearchCar } from "./searchcar";
 import { handleChooseCar } from "./choosecar";
 import { handleStartRound } from "./startround";
 import { handleGameStart } from "./gamestart";
+import { handleResetRound } from "./resetround";
 import { handleStats } from "./stats";
 import { handlePastRaces } from "./pastraces";
 import { handleAddRace } from "./addrace";
@@ -34,6 +35,9 @@ export async function handleCommand(
       break;
     case "gamestart":
       await handleGameStart(interaction, client);
+      break;
+    case "resetround":
+      await handleResetRound(interaction);
       break;
     case "stats":
       await handleStats(interaction);
