@@ -564,14 +564,11 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
 
   // Confirm or clear car image
   '/api/car-image/confirm': async (req) => {
-    console.log('[car-image] confirm request', { method: req.method })
     if (req.method === 'POST') {
       try {
         const body = await req.json() as { carName?: string; imageUrl?: string }
-        console.log('[car-image] confirm payload', body)
         const carName = body?.carName?.trim()
         if (!carName || !body?.imageUrl) {
-          console.warn('[car-image] missing fields', { carName, imageUrl: body?.imageUrl })
           return new Response(JSON.stringify({ error: 'Missing carName or imageUrl' }), { status: 400 })
         }
 
@@ -582,10 +579,8 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)/g, '')
 
-        console.log('[car-image] downloading', { carName, imageUrl: body.imageUrl })
         const imageResponse = await fetch(body.imageUrl)
         if (!imageResponse.ok) {
-          console.warn('[car-image] download failed', { status: imageResponse.status, carName })
           return new Response(JSON.stringify({ error: 'Failed to download image' }), { status: 400 })
         }
 
@@ -598,15 +593,9 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         const extension = extensionMap[contentType] || 'jpg'
         const filename = `${slug || 'car'}-${Date.now()}.${extension}`
         const filePath = join(carImagesPath, filename)
-        console.log('[car-image] saving file', { filePath, contentType })
-
         const buffer = new Uint8Array(await imageResponse.arrayBuffer())
-        const bytesWritten = await Bun.write(filePath, buffer)
-        console.log('[car-image] file saved', { filePath, bytesWritten })
-
-        console.log('[car-image] db path', { dbPath })
+        await Bun.write(filePath, buffer)
         const previous = db.query("SELECT image_url FROM car_images WHERE lower(car_name) = lower(?)").get(carName) as { image_url?: string } | null
-        console.log('[car-image] previous record', { carName, previous })
         if (previous?.image_url && previous.image_url.startsWith('/car-images/')) {
           const previousFile = join(carImagesPath, previous.image_url.replace('/car-images/', ''))
           if (previousFile !== filePath) {
@@ -615,14 +604,11 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         }
 
         const localUrl = `/car-images/${filename}`
-        console.log('[car-image] inserting record', { carName, localUrl })
 
         const stmt = db.prepare(
           "INSERT INTO car_images (car_name, image_url, confirmed_at) VALUES (?, ?, ?) ON CONFLICT(car_name) DO UPDATE SET image_url = ?, confirmed_at = ?"
         )
         stmt.run(carName, localUrl, Date.now(), localUrl, Date.now())
-        const verify = db.query("SELECT car_name, image_url FROM car_images WHERE lower(car_name) = lower(?)").get(carName) as { car_name?: string; image_url?: string } | null
-        console.log('[car-image] insert verify', { carName, verify })
 
         return new Response(JSON.stringify({ ok: true, imageUrl: localUrl }), {
           headers: { 'Content-Type': 'application/json' }
@@ -636,14 +622,12 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     if (req.method === 'DELETE') {
       try {
         const body = await req.json() as { carName?: string }
-        console.log('[car-image] delete payload', body)
         const carName = body?.carName?.trim()
         if (!carName) {
           return new Response(JSON.stringify({ error: 'Missing carName' }), { status: 400 })
         }
 
         db.prepare("DELETE FROM car_images WHERE lower(car_name) = lower(?)").run(carName)
-        console.log('[car-image] delete ok', { carName })
 
         return new Response(JSON.stringify({ ok: true }), {
           headers: { 'Content-Type': 'application/json' }
@@ -670,12 +654,6 @@ const server = Bun.serve({
     if (pathname.length > 1 && pathname.endsWith('/')) {
       pathname = pathname.slice(0, -1)
     }
-
-    console.log('[api] request', {
-      method: req.method,
-      pathname,
-      search: url.search
-    })
 
     const exactHandler = handlers[pathname]
     if (exactHandler) {
