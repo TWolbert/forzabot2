@@ -674,7 +674,7 @@ export function PlayerDetail() {
                   <tr
                     key={time.id}
                     onClick={() => (window.location.href = `/times/${time.id}`)}
-                    className="border-b-2 border-gray-700 hover:bg-gray-700 transition cursor-pointer transform hover:scale-105"
+                    className="border-b-2 border-gray-700 hover:bg-gray-700 transition cursor-pointer"
                   >
                     <td className="py-4 px-4 text-white font-bold">{time.car_name}</td>
                     <td className="py-4 px-4 text-white font-bold">{time.race_name}</td>

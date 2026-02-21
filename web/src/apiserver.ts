@@ -150,9 +150,11 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         p.id,
         p.username,
         p.display_name,
-        COUNT(r.id) as wins
+        COUNT(r.id) as wins,
+        da.avatar_url
       FROM players p
       LEFT JOIN rounds r ON p.id = r.winner_id
+      LEFT JOIN discord_avatars da ON p.id = da.player_id
       GROUP BY p.id
       ORDER BY wins DESC
       LIMIT 10
