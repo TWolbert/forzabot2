@@ -98,9 +98,9 @@ async function getWikipediaCarImage(carName: string, index = 0): Promise<string 
 }
 
 // Get car image with fallback sources
-async function getTopCarImage(carName: string, index = 0): Promise<string | null> {
+  async function getTopCarImage(carName: string, index = 0): Promise<string | null> {
   try {
-    const confirmed = db.query("SELECT image_url FROM car_images WHERE car_name = ?").get(carName) as { image_url?: string } | null
+      const confirmed = db.query("SELECT image_url FROM car_images WHERE lower(car_name) = lower(?)").get(carName) as { image_url?: string } | null
     if (confirmed?.image_url) return confirmed.image_url
   } catch (error) {
     console.warn(`Failed to read confirmed image for ${carName}:`, error)
@@ -544,13 +544,14 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     if (req.method === 'POST') {
       try {
         const body = await req.json() as { carName?: string; imageUrl?: string }
-        if (!body?.carName || !body?.imageUrl) {
+        const carName = body?.carName?.trim()
+        if (!carName || !body?.imageUrl) {
           return new Response(JSON.stringify({ error: 'Missing carName or imageUrl' }), { status: 400 })
         }
 
         await mkdir(carImagesPath, { recursive: true })
 
-        const slug = body.carName
+        const slug = carName
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)/g, '')
@@ -573,7 +574,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         const buffer = new Uint8Array(await imageResponse.arrayBuffer())
         await Bun.write(filePath, buffer)
 
-        const previous = db.query("SELECT image_url FROM car_images WHERE car_name = ?").get(body.carName) as { image_url?: string } | null
+        const previous = db.query("SELECT image_url FROM car_images WHERE lower(car_name) = lower(?)").get(carName) as { image_url?: string } | null
         if (previous?.image_url && previous.image_url.startsWith('/car-images/')) {
           const previousFile = join(carImagesPath, previous.image_url.replace('/car-images/', ''))
           if (previousFile !== filePath) {
@@ -586,7 +587,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         const stmt = db.prepare(
           "INSERT INTO car_images (car_name, image_url, confirmed_at) VALUES (?, ?, ?) ON CONFLICT(car_name) DO UPDATE SET image_url = ?, confirmed_at = ?"
         )
-        stmt.run(body.carName, localUrl, Date.now(), localUrl, Date.now())
+        stmt.run(carName, localUrl, Date.now(), localUrl, Date.now())
 
         return new Response(JSON.stringify({ ok: true }), {
           headers: { 'Content-Type': 'application/json' }
@@ -600,11 +601,12 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     if (req.method === 'DELETE') {
       try {
         const body = await req.json() as { carName?: string }
-        if (!body?.carName) {
+        const carName = body?.carName?.trim()
+        if (!carName) {
           return new Response(JSON.stringify({ error: 'Missing carName' }), { status: 400 })
         }
 
-        db.prepare("DELETE FROM car_images WHERE car_name = ?").run(body.carName)
+        db.prepare("DELETE FROM car_images WHERE lower(car_name) = lower(?)").run(carName)
 
         return new Response(JSON.stringify({ ok: true }), {
           headers: { 'Content-Type': 'application/json' }
