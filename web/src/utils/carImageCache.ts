@@ -4,6 +4,7 @@
  */
 
 const CACHE_KEY_PREFIX = 'car-image-'
+const CONFIRMED_KEY_PREFIX = 'car-image-confirmed-'
 const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
 
 interface CacheEntry {
@@ -22,6 +23,12 @@ export async function getCachedCarImage(
   options: { forceRefresh?: boolean } = {}
 ): Promise<string | null> {
   try {
+    const confirmedKey = `${CONFIRMED_KEY_PREFIX}${carName}`
+    const confirmedImage = localStorage.getItem(confirmedKey)
+    if (confirmedImage) {
+      return confirmedImage
+    }
+
     const cacheKey = `${CACHE_KEY_PREFIX}${carName}-${index}`
     
     // Check if we have a cached version

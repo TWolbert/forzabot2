@@ -26,22 +26,8 @@ export function Home() {
       
       for (const car of PROMO_CARS) {
         try {
-          // Check cache first
-          const cached = localStorage.getItem(`car-image-${car}`)
-          if (cached) {
-            images[car] = cached
-            continue
-          }
-          
-          const response = await fetch(`/api/car-image/${encodeURIComponent(car)}`)
-          const data = await response.json()
-          const imageUrl = data.imageUrl
+          const imageUrl = await getCachedCarImage(car)
           images[car] = imageUrl
-          
-          // Cache for 7 days
-          if (imageUrl) {
-            localStorage.setItem(`car-image-${car}`, imageUrl)
-          }
         } catch (error) {
           console.error(`Failed to fetch image for ${car}:`, error)
           images[car] = null

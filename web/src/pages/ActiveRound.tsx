@@ -32,6 +32,8 @@ export function ActiveRound() {
   const lastRoundIdRef = useRef<string | null>(null)
   const redirectedRef = useRef(false)
 
+  const getConfirmedKey = (carName: string) => `car-image-confirmed-${carName}`
+
   useEffect(() => {
     let mounted = true
     
@@ -84,10 +86,19 @@ export function ActiveRound() {
 
     const fetchCarImages = async () => {
       const images: Record<string, string | null> = {}
+      const confirmed: Record<string, boolean> = {}
       
       for (const player of round.players) {
         if (!player.car_name) continue
         try {
+          const confirmedKey = getConfirmedKey(player.car_name)
+          const confirmedImage = localStorage.getItem(confirmedKey)
+          if (confirmedImage) {
+            images[player.id] = confirmedImage
+            confirmed[player.id] = true
+            continue
+          }
+
           const index = playerImageIndex[player.id] ?? 0
           const imageUrl = await getCachedCarImage(player.car_name, index, { forceRefresh: index !== 0 })
           images[player.id] = imageUrl
@@ -98,12 +109,17 @@ export function ActiveRound() {
       }
       
       setPlayerCarImages(prev => ({ ...prev, ...images }))
+      setConfirmedImages(prev => ({ ...prev, ...confirmed }))
     }
 
     fetchCarImages()
   }, [round, playerImageIndex])
 
   const handleRetryImage = (playerId: string) => {
+    const carName = round?.players.find(player => player.id === playerId)?.car_name
+    if (carName) {
+      localStorage.removeItem(getConfirmedKey(carName))
+    }
     setPlayerImageIndex(prev => ({
       ...prev,
       [playerId]: Math.floor(Math.random() * 10)
@@ -115,6 +131,11 @@ export function ActiveRound() {
   }
 
   const handleConfirmImage = (playerId: string) => {
+    const carName = round?.players.find(player => player.id === playerId)?.car_name
+    const imageUrl = playerCarImages[playerId]
+    if (carName && imageUrl) {
+      localStorage.setItem(getConfirmedKey(carName), imageUrl)
+    }
     setConfirmedImages(prev => ({
       ...prev,
       [playerId]: true
