@@ -1,55 +1,73 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Trophy, Gamepad2, Clock } from 'lucide-react'
+import { Home, Trophy, Gamepad2, Clock } from 'lucide-react'
 
 export function Navigation() {
   const location = useLocation()
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/'
-    // Check if the path starts with the target path and is either exact or has a param
     return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
   return (
-    <nav className="bg-gradient-to-r from-green-600 to-green-700 text-white shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-3xl font-bold">🏁 ForzaBot Dashboard</h1>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            to="/"
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition ${
-              isActive('/')
-                ? 'bg-white text-green-600'
-                : 'hover:bg-green-500'
-            }`}
-          >
-            <Trophy size={20} />
-            Leaderboard
+    <nav className="bg-gradient-to-r from-red-700 via-orange-600 to-yellow-600 text-white shadow-2xl border-b-4 border-orange-400">
+      <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className="flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-3 text-3xl font-black hover:opacity-80 transition">
+            <span>🏁</span>
+            <span>FORZABOT</span>
           </Link>
-          <Link
-            to="/games"
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition ${
-              isActive('/games')
-                ? 'bg-white text-green-600'
-                : 'hover:bg-green-500'
-            }`}
-          >
-            <Gamepad2 size={20} />
-            Games
-          </Link>
-          <Link
-            to="/times"
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition ${
-              isActive('/times')
-                ? 'bg-white text-green-600'
-                : 'hover:bg-green-500'
-            }`}
-          >
-            <Clock size={20} />
-            Lap Times
-          </Link>
+          
+          <div className="flex gap-1">
+            <Link
+              to="/"
+              className={`flex items-center gap-2 px-4 py-2 font-bold transition transform hover:scale-110 ${
+                location.pathname === '/'
+                  ? 'bg-white text-orange-600 shadow-lg'
+                  : 'hover:bg-orange-500 hover:shadow-lg'
+              }`}
+              style={{clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)'}}
+            >
+              <Home size={18} />
+              HOME
+            </Link>
+            <Link
+              to="/leaderboard"
+              className={`flex items-center gap-2 px-4 py-2 font-bold transition transform hover:scale-110 ${
+                isActive('/leaderboard')
+                  ? 'bg-white text-green-600 shadow-lg'
+                  : 'hover:bg-orange-500 hover:shadow-lg'
+              }`}
+              style={{clipPath: 'polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px)'}}
+            >
+              <Trophy size={18} />
+              BOARD
+            </Link>
+            <Link
+              to="/games"
+              className={`flex items-center gap-2 px-4 py-2 font-bold transition transform hover:scale-110 ${
+                isActive('/games')
+                  ? 'bg-white text-yellow-600 shadow-lg'
+                  : 'hover:bg-orange-500 hover:shadow-lg'
+              }`}
+              style={{clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)'}}
+            >
+              <Gamepad2 size={18} />
+              GAMES
+            </Link>
+            <Link
+              to="/times"
+              className={`flex items-center gap-2 px-4 py-2 font-bold transition transform hover:scale-110 ${
+                isActive('/times')
+                  ? 'bg-white text-blue-600 shadow-lg'
+                  : 'hover:bg-orange-500 hover:shadow-lg'
+              }`}
+              style={{clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)'}}
+            >
+              <Clock size={18} />
+              TIMES
+            </Link>
+          </div>
         </div>
       </div>
     </nav>
