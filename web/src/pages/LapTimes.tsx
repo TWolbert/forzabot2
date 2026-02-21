@@ -21,8 +21,8 @@ export function LapTimes() {
   const [times, setTimes] = useState<Time[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
-  const [sortKey, setSortKey] = useState<'track' | 'car' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [trackFilter, setTrackFilter] = useState('')
+  const [carFilter, setCarFilter] = useState('')
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
   const [carImageIndex, setCarImageIndex] = useState<Record<string, number>>({})
   const [confirmedCars, setConfirmedCars] = useState<Record<string, boolean>>({})
@@ -38,7 +38,7 @@ export function LapTimes() {
 
   useEffect(() => {
     setCurrentPage(0)
-  }, [sortKey, sortDirection])
+  }, [trackFilter, carFilter])
 
   useEffect(() => {
     const fetchCarImages = async () => {
@@ -171,17 +171,17 @@ export function LapTimes() {
     )
   }
 
-  const sortedTimes = sortKey
-    ? [...times].sort((a, b) => {
-        const aValue = sortKey === 'track' ? a.race_name : a.car_name
-        const bValue = sortKey === 'track' ? b.race_name : b.car_name
-        const result = aValue.localeCompare(bValue)
-        return sortDirection === 'asc' ? result : -result
-      })
-    : times
+  const trackOptions = Array.from(new Set(times.map(time => time.race_name))).sort()
+  const carOptions = Array.from(new Set(times.map(time => time.car_name))).sort()
 
-  const totalPages = Math.ceil(sortedTimes.length / ITEMS_PER_PAGE)
-  const paginatedTimes = sortedTimes.slice(
+  const filteredTimes = times.filter(time => {
+    if (trackFilter && time.race_name !== trackFilter) return false
+    if (carFilter && time.car_name !== carFilter) return false
+    return true
+  })
+
+  const totalPages = Math.ceil(filteredTimes.length / ITEMS_PER_PAGE)
+  const paginatedTimes = filteredTimes.slice(
     currentPage * ITEMS_PER_PAGE,
     (currentPage + 1) * ITEMS_PER_PAGE
   )
@@ -194,35 +194,39 @@ export function LapTimes() {
       </h2>
 
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <span className="text-xs font-black text-cyan-400 uppercase">Sort by</span>
-        <button
-          type="button"
-          onClick={() => {
-            setSortKey('track')
-            setSortDirection(prev => (sortKey === 'track' ? (prev === 'asc' ? 'desc' : 'asc') : 'asc'))
-          }}
-          className={`px-3 py-1 rounded-full border-2 font-black text-xs transition ${sortKey === 'track' ? 'border-cyan-400 text-cyan-200 bg-cyan-900/40' : 'border-cyan-700 text-cyan-400 hover:border-cyan-500'}`}
+        <span className="text-xs font-black text-cyan-400 uppercase">Filter</span>
+        <select
+          value={trackFilter}
+          onChange={event => setTrackFilter(event.target.value)}
+          className="bg-gray-900 border-2 border-cyan-700 text-cyan-200 text-sm font-black rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-400"
         >
-          Track {sortKey === 'track' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setSortKey('car')
-            setSortDirection(prev => (sortKey === 'car' ? (prev === 'asc' ? 'desc' : 'asc') : 'asc'))
-          }}
-          className={`px-3 py-1 rounded-full border-2 font-black text-xs transition ${sortKey === 'car' ? 'border-cyan-400 text-cyan-200 bg-cyan-900/40' : 'border-cyan-700 text-cyan-400 hover:border-cyan-500'}`}
+          <option value="">All Tracks</option>
+          {trackOptions.map(track => (
+            <option key={track} value={track}>
+              {track}
+            </option>
+          ))}
+        </select>
+        <select
+          value={carFilter}
+          onChange={event => setCarFilter(event.target.value)}
+          className="bg-gray-900 border-2 border-cyan-700 text-cyan-200 text-sm font-black rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-400"
         >
-          Car {sortKey === 'car' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
-        </button>
-        {sortKey && (
+          <option value="">All Cars</option>
+          {carOptions.map(car => (
+            <option key={car} value={car}>
+              {car}
+            </option>
+          ))}
+        </select>
+        {(trackFilter || carFilter) && (
           <button
             type="button"
             onClick={() => {
-              setSortKey(null)
-              setSortDirection('asc')
+              setTrackFilter('')
+              setCarFilter('')
             }}
-            className="px-3 py-1 rounded-full border-2 border-gray-700 text-gray-300 text-xs font-black hover:border-gray-500 transition"
+            className="px-3 py-2 rounded-lg border-2 border-gray-700 text-gray-300 text-xs font-black hover:border-gray-500 transition"
           >
             Clear
           </button>
