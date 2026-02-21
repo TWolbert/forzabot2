@@ -43,6 +43,17 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
   for (const user of players) {
     playerStmt.run(user.id, user.username, user.displayName, Date.now());
     roundPlayerStmt.run(roundId, user.id);
+    
+    // Cache Discord avatar URLs
+    try {
+      const avatarUrl = user.displayAvatarURL({ size: 256 });
+      const avatarStmt = db.prepare(
+        "INSERT INTO discord_avatars (player_id, avatar_url, cached_at) VALUES (?, ?, ?) ON CONFLICT(player_id) DO UPDATE SET avatar_url = ?, cached_at = ?"
+      );
+      avatarStmt.run(user.id, avatarUrl, Date.now(), avatarUrl, Date.now());
+    } catch (e) {
+      console.error(`Failed to cache avatar for ${user.id}:`, e);
+    }
   }
 
   const raceIconPath = await getRaceIconPath(raceType);
