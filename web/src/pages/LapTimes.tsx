@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getTimes } from '../api'
 import { getCachedCarImage } from '../utils/carImageCache'
-import { Loader, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Loader, Clock, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 
 interface Time {
   id: string
@@ -22,6 +22,10 @@ export function LapTimes() {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
+  const [carImageIndex, setCarImageIndex] = useState<Record<string, number>>({})
+  const [confirmedCars, setConfirmedCars] = useState<Record<string, boolean>>({})
+
+  const getConfirmedKey = (carName: string) => `car-image-confirmed-${carName}`
 
   useEffect(() => {
     getTimes()
@@ -33,11 +37,20 @@ export function LapTimes() {
   useEffect(() => {
     const fetchCarImages = async () => {
       const images: Record<string, string | null> = {}
+      const confirmed: Record<string, boolean> = {}
       
       for (const time of times) {
         if (!time.car_name || images[time.car_name]) continue
         try {
-          const imageUrl = await getCachedCarImage(time.car_name)
+          const confirmedImage = localStorage.getItem(getConfirmedKey(time.car_name))
+          if (confirmedImage) {
+            images[time.car_name] = confirmedImage
+            confirmed[time.car_name] = true
+            continue
+          }
+
+          const index = carImageIndex[time.car_name] ?? 0
+          const imageUrl = await getCachedCarImage(time.car_name, index, { forceRefresh: index !== 0 })
           images[time.car_name] = imageUrl
         } catch (error) {
           console.error(`Failed to fetch image for ${time.car_name}:`, error)
@@ -46,12 +59,84 @@ export function LapTimes() {
       }
       
       setCarImages(images)
+      setConfirmedCars(prev => ({ ...prev, ...confirmed }))
     }
 
     if (times.length > 0) {
       fetchCarImages()
     }
-  }, [times])
+  }, [times, carImageIndex])
+
+  const handleRetryCar = async (carName: string) => {
+    localStorage.removeItem(getConfirmedKey(carName))
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName })
+      })
+    } catch (error) {
+      console.error('Failed to clear confirmed image:', error)
+    }
+
+    setConfirmedCars(prev => ({
+      ...prev,
+      [carName]: false
+    }))
+    setCarImageIndex(prev => ({
+      ...prev,
+      [carName]: Math.floor(Math.random() * 10)
+    }))
+  }
+
+  const handleConfirmCar = async (carName: string) => {
+    const imageUrl = carImages[carName]
+    if (!imageUrl) return
+
+    localStorage.setItem(getConfirmedKey(carName), imageUrl)
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName, imageUrl })
+      })
+    } catch (error) {
+      console.error('Failed to confirm image:', error)
+    }
+
+    setConfirmedCars(prev => ({
+      ...prev,
+      [carName]: true
+    }))
+  }
+
+  const handleManualCar = async (carName: string) => {
+    const input = window.prompt('Paste image URL for this car:')
+    if (!input) return
+
+    const imageUrl = input.trim()
+    if (!imageUrl) return
+
+    localStorage.setItem(getConfirmedKey(carName), imageUrl)
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName, imageUrl })
+      })
+    } catch (error) {
+      console.error('Failed to confirm image:', error)
+    }
+
+    setCarImages(prev => ({
+      ...prev,
+      [carName]: imageUrl
+    }))
+    setConfirmedCars(prev => ({
+      ...prev,
+      [carName]: true
+    }))
+  }
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000)
@@ -103,6 +188,7 @@ export function LapTimes() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {paginatedTimes.map(time => {
               const imageUrl = carImages[time.car_name]
+              const isConfirmed = confirmedCars[time.car_name]
               return (
                 <Link
                   key={time.id}
@@ -121,6 +207,50 @@ export function LapTimes() {
                   
                   {/* Content overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+                  {!isConfirmed && (
+                    <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          handleRetryCar(time.car_name)
+                        }}
+                        className="bg-cyan-500/90 hover:bg-cyan-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                      >
+                        Retry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          handleConfirmCar(time.car_name)
+                        }}
+                        className="bg-green-500/90 hover:bg-green-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          handleManualCar(time.car_name)
+                        }}
+                        className="bg-gray-900/90 hover:bg-gray-800 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                      >
+                        Set URL
+                      </button>
+                    </div>
+                  )}
+
+                  {isConfirmed && (
+                    <div className="absolute top-3 left-3 flex items-center justify-center bg-green-500/90 text-white text-xs font-black w-7 h-7 rounded-full shadow-lg">
+                      <Check size={14} />
+                    </div>
+                  )}
                   
                   <div className="relative h-full flex flex-col justify-between p-6 text-white">
                     {/* Top: Track and Time */}
@@ -188,6 +318,10 @@ export function TimeDetail() {
   const [selectedTime, setSelectedTime] = useState<Time | null>(null)
   const [imageLoading, setImageLoading] = useState(true)
   const [loading, setLoading] = useState(true)
+  const [imageIndex, setImageIndex] = useState(0)
+  const [isConfirmed, setIsConfirmed] = useState(false)
+
+  const getConfirmedKey = (carName: string) => `car-image-confirmed-${carName}`
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000)
@@ -221,9 +355,16 @@ export function TimeDetail() {
         if (!response.ok) throw new Error('Time not found')
         
         const time = await response.json()
+        const confirmedImage = localStorage.getItem(getConfirmedKey(time.car_name))
+        if (confirmedImage) {
+          setSelectedTime({ ...time, car_image: confirmedImage })
+          setIsConfirmed(true)
+          return
+        }
 
-        const carImage = await getCachedCarImage(time.car_name)
+        const carImage = await getCachedCarImage(time.car_name, imageIndex, { forceRefresh: imageIndex !== 0 })
         setSelectedTime({ ...time, car_image: carImage })
+        setIsConfirmed(false)
       } catch (error) {
         console.error('Failed to fetch time details:', error)
       } finally {
@@ -233,7 +374,61 @@ export function TimeDetail() {
     }
 
     fetchTimeDetails()
-  }, [timeId])
+  }, [timeId, imageIndex])
+
+  const handleRetryImage = async () => {
+    if (!selectedTime) return
+    localStorage.removeItem(getConfirmedKey(selectedTime.car_name))
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName: selectedTime.car_name })
+      })
+    } catch (error) {
+      console.error('Failed to clear confirmed image:', error)
+    }
+    setIsConfirmed(false)
+    setImageIndex(Math.floor(Math.random() * 10))
+  }
+
+  const handleConfirmImage = async () => {
+    if (!selectedTime?.car_image) return
+
+    localStorage.setItem(getConfirmedKey(selectedTime.car_name), selectedTime.car_image)
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName: selectedTime.car_name, imageUrl: selectedTime.car_image })
+      })
+    } catch (error) {
+      console.error('Failed to confirm image:', error)
+    }
+    setIsConfirmed(true)
+  }
+
+  const handleManualImage = async () => {
+    if (!selectedTime) return
+    const input = window.prompt('Paste image URL for this car:')
+    if (!input) return
+
+    const imageUrl = input.trim()
+    if (!imageUrl) return
+
+    localStorage.setItem(getConfirmedKey(selectedTime.car_name), imageUrl)
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName: selectedTime.car_name, imageUrl })
+      })
+    } catch (error) {
+      console.error('Failed to confirm image:', error)
+    }
+    setSelectedTime(prev => (prev ? { ...prev, car_image: imageUrl } : prev))
+    setIsConfirmed(true)
+  }
 
   if (loading) {
     return (
@@ -277,11 +472,43 @@ export function TimeDetail() {
                 <Loader className="animate-spin text-cyan-400" size={40} />
               </div>
             ) : selectedTime.car_image ? (
-              <img
-                src={selectedTime.car_image}
-                alt={selectedTime.car_name}
-                className="w-full aspect-video object-cover rounded-lg shadow-xl border-2 border-cyan-500 drop-shadow-lg"
-              />
+              <div className="relative group">
+                <img
+                  src={selectedTime.car_image}
+                  alt={selectedTime.car_name}
+                  className="w-full aspect-video object-cover rounded-lg shadow-xl border-2 border-cyan-500 drop-shadow-lg"
+                />
+                {!isConfirmed && (
+                  <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                    <button
+                      type="button"
+                      onClick={handleRetryImage}
+                      className="bg-cyan-500/90 hover:bg-cyan-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmImage}
+                      className="bg-green-500/90 hover:bg-green-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleManualImage}
+                      className="bg-gray-900/90 hover:bg-gray-800 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                    >
+                      Set URL
+                    </button>
+                  </div>
+                )}
+                {isConfirmed && (
+                  <div className="absolute top-3 left-3 flex items-center justify-center bg-green-500/90 text-white text-xs font-black w-7 h-7 rounded-full shadow-lg">
+                    <Check size={14} />
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex items-center justify-center w-full aspect-video bg-gray-800 rounded-lg text-gray-500 border-2 border-cyan-500">
                 No image available
