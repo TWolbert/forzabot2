@@ -142,6 +142,27 @@ export function ActiveRound() {
     }))
   }
 
+  const handleManualImage = (playerId: string) => {
+    const carName = round?.players.find(player => player.id === playerId)?.car_name
+    if (!carName) return
+
+    const input = window.prompt('Paste image URL for this car:')
+    if (!input) return
+
+    const imageUrl = input.trim()
+    if (!imageUrl) return
+
+    localStorage.setItem(getConfirmedKey(carName), imageUrl)
+    setPlayerCarImages(prev => ({
+      ...prev,
+      [playerId]: imageUrl
+    }))
+    setConfirmedImages(prev => ({
+      ...prev,
+      [playerId]: true
+    }))
+  }
+
   const formatRaceType = (type: string) => {
     return type.charAt(0).toUpperCase() + type.slice(1)
   }
@@ -238,22 +259,31 @@ export function ActiveRound() {
                         />
                       )}
                     </div>
-                    <div className="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
-                      <button
-                        type="button"
-                        onClick={() => handleRetryImage(player.id)}
-                        className="bg-orange-500/90 hover:bg-orange-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
-                      >
-                        Retry search
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleConfirmImage(player.id)}
-                        className="bg-green-500/90 hover:bg-green-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
-                      >
-                        Confirm
-                      </button>
-                    </div>
+                    {!isConfirmed && (
+                      <div className="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                        <button
+                          type="button"
+                          onClick={() => handleRetryImage(player.id)}
+                          className="bg-orange-500/90 hover:bg-orange-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                        >
+                          Retry search
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmImage(player.id)}
+                          className="bg-green-500/90 hover:bg-green-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleManualImage(player.id)}
+                          className="bg-gray-900/90 hover:bg-gray-800 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                        >
+                          Set URL
+                        </button>
+                      </div>
+                    )}
                     {isConfirmed && (
                       <div className="absolute top-2 left-2 flex items-center gap-1 bg-green-500/90 text-white text-xs font-black px-2 py-1 rounded-full shadow-lg">
                         <Check size={14} />
