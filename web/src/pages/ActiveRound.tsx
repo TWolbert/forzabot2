@@ -285,9 +285,8 @@ export function ActiveRound() {
                       </div>
                     )}
                     {isConfirmed && (
-                      <div className="absolute top-2 left-2 flex items-center gap-1 bg-green-500/90 text-white text-xs font-black px-2 py-1 rounded-full shadow-lg">
+                      <div className="absolute top-2 left-2 flex items-center justify-center bg-green-500/90 text-white text-xs font-black w-7 h-7 rounded-full shadow-lg">
                         <Check size={14} />
-                        Correct
                       </div>
                     )}
                   </div>
