@@ -344,6 +344,9 @@ export function PlayerDetail() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ carName, imageUrl })
       })
+      if (!response.ok) {
+        throw new Error('Confirm failed')
+      }
       const data = await response.json()
       const confirmedUrl = data?.imageUrl || imageUrl
       localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
@@ -351,26 +354,24 @@ export function PlayerDetail() {
         ...prev,
         [carName]: confirmedUrl
       }))
+      setConfirmedCars(prev => ({
+        ...prev,
+        [carName]: true
+      }))
     } catch (error) {
       console.error('Failed to confirm image:', error)
     }
-          if (!response.ok) {
-            throw new Error('Confirm failed')
-          }
-          const data = await response.json()
-          const confirmedUrl = data?.imageUrl || imageUrl
-          localStorage.setItem(getConfirmedKey(carName), confirmedUrl)
-          setCarImages(prev => ({
-            ...prev,
-            [carName]: confirmedUrl
-          }))
-          setConfirmedCars(prev => ({
-            ...prev,
-            [carName]: true
-          }))
+  }
+
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
         <Loader className="animate-spin" size={40} />
+      </div>
+    )
+  }
+
+  if (!playerData) {
     return (
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-green-500 drop-shadow-2xl">
         <Link
