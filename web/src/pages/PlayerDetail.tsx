@@ -2,19 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Loader, ChevronLeft, Trophy, Clock, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { getCachedCarImage } from '../utils/carImageCache'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Tooltip,
-  Legend
-} from 'chart.js'
-import { Bar, Line } from 'react-chartjs-2'
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend)
 
 interface Player {
   id: string
@@ -166,78 +153,61 @@ export function PlayerDetail() {
     }
   }, [playerData, selectedMap])
 
-  const timesPerDayData = {
-    labels: timesPerDay.labels,
-    datasets: [
-      {
-        label: 'Times per day',
-        data: timesPerDay.values,
-        backgroundColor: 'rgba(34, 211, 238, 0.35)',
-        borderColor: 'rgba(34, 211, 238, 0.9)',
-        borderWidth: 2
-      }
-    ]
-  }
+  const barChart = useMemo(() => {
+    const width = 600
+    const height = 240
+    const padding = 28
+    const values = timesPerDay.values
+    const labels = timesPerDay.labels
+    if (!values.length) return null
 
-  const mapProgressionData = {
-    labels: mapProgression.labels,
-    datasets: [
-      {
-        label: selectedMap || 'Lap time progression',
-        data: mapProgression.values,
-        borderColor: 'rgba(59, 130, 246, 0.9)',
-        backgroundColor: 'rgba(59, 130, 246, 0.25)',
-        tension: 0.3,
-        pointRadius: 3
-      }
-    ]
-  }
+    const maxValue = Math.max(...values, 1)
+    const chartWidth = width - padding * 2
+    const chartHeight = height - padding * 2
+    const barSlot = chartWidth / values.length
+    const barWidth = Math.max(6, barSlot * 0.7)
+    const labelStep = Math.max(1, Math.ceil(values.length / 6))
 
-  const countChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    plugins: {
-      legend: { display: false }
-    },
-    scales: {
-      x: {
-        ticks: { color: '#9CA3AF', font: { weight: '700' } },
-        grid: { color: 'rgba(255,255,255,0.05)' }
-      },
-      y: {
-        ticks: { color: '#9CA3AF', precision: 0 },
-        grid: { color: 'rgba(255,255,255,0.05)' }
+    const bars = values.map((value, index) => {
+      const barHeight = (value / maxValue) * chartHeight
+      return {
+        x: padding + index * barSlot + (barSlot - barWidth) / 2,
+        y: padding + (chartHeight - barHeight),
+        width: barWidth,
+        height: barHeight,
+        label: labels[index]
       }
-    }
-  }
+    })
 
-  const progressChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => `Lap Time: ${formatTime(Number(context.raw))}`
-        }
-      }
-    },
-    scales: {
-      x: {
-        ticks: { color: '#9CA3AF', font: { weight: '700' } },
-        grid: { color: 'rgba(255,255,255,0.05)' }
-      },
-      y: {
-        ticks: {
-          color: '#9CA3AF',
-          callback: (value: string | number) => formatTime(Number(value))
-        },
-        grid: { color: 'rgba(255,255,255,0.05)' }
-      }
-    }
-  }
+    return { width, height, padding, chartWidth, chartHeight, bars, labelStep }
+  }, [timesPerDay])
+
+  const lineChart = useMemo(() => {
+    const width = 600
+    const height = 240
+    const padding = 28
+    const values = mapProgression.values
+    const labels = mapProgression.labels
+    if (!values.length) return null
+
+    const minValue = Math.min(...values)
+    const maxValue = Math.max(...values)
+    const range = Math.max(1, maxValue - minValue)
+    const chartWidth = width - padding * 2
+    const chartHeight = height - padding * 2
+
+    const points = values.map((value, index) => {
+      const x = padding + (values.length === 1 ? chartWidth / 2 : (index / (values.length - 1)) * chartWidth)
+      const y = padding + (chartHeight - ((value - minValue) / range) * chartHeight)
+      return { x, y }
+    })
+
+    const path = points
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+      .join(' ')
+
+    return { width, height, padding, chartWidth, chartHeight, points, path, labels, minValue, maxValue }
+  }, [mapProgression])
 
   useEffect(() => {
     if (!playerId) return
@@ -439,9 +409,37 @@ export function PlayerDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-cyan-500 drop-shadow-2xl">
             <h2 className="text-2xl font-black text-cyan-400 mb-4 uppercase drop-shadow-lg">Times Per Day</h2>
-            {timesPerDay.labels.length > 0 ? (
+            {barChart ? (
               <div className="h-64">
-                <Bar data={timesPerDayData} options={countChartOptions} />
+                <svg className="w-full h-full" viewBox={`0 0 ${barChart.width} ${barChart.height}`} preserveAspectRatio="xMidYMid meet">
+                  <rect x={0} y={0} width={barChart.width} height={barChart.height} fill="transparent" />
+                  <line x1={barChart.padding} y1={barChart.padding} x2={barChart.padding} y2={barChart.height - barChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                  <line x1={barChart.padding} y1={barChart.height - barChart.padding} x2={barChart.width - barChart.padding} y2={barChart.height - barChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                  {barChart.bars.map((bar, index) => (
+                    <g key={`bar-${index}`}>
+                      <rect
+                        x={bar.x}
+                        y={bar.y}
+                        width={bar.width}
+                        height={bar.height}
+                        rx={4}
+                        fill="rgba(34, 211, 238, 0.6)"
+                      />
+                      {index % barChart.labelStep === 0 && (
+                        <text
+                          x={bar.x + bar.width / 2}
+                          y={barChart.height - 6}
+                          textAnchor="middle"
+                          fill="#9CA3AF"
+                          fontSize={10}
+                          fontWeight={700}
+                        >
+                          {bar.label}
+                        </text>
+                      )}
+                    </g>
+                  ))}
+                </svg>
               </div>
             ) : (
               <p className="text-gray-400 font-bold">No time trials recorded yet</p>
@@ -463,9 +461,23 @@ export function PlayerDetail() {
                 ))}
               </select>
             </div>
-            {selectedMap ? (
+            {lineChart ? (
               <div className="h-64">
-                <Line data={mapProgressionData} options={progressChartOptions} />
+                <svg className="w-full h-full" viewBox={`0 0 ${lineChart.width} ${lineChart.height}`} preserveAspectRatio="xMidYMid meet">
+                  <rect x={0} y={0} width={lineChart.width} height={lineChart.height} fill="transparent" />
+                  <line x1={lineChart.padding} y1={lineChart.padding} x2={lineChart.padding} y2={lineChart.height - lineChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                  <line x1={lineChart.padding} y1={lineChart.height - lineChart.padding} x2={lineChart.width - lineChart.padding} y2={lineChart.height - lineChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                  <path d={lineChart.path} fill="none" stroke="rgba(59, 130, 246, 0.9)" strokeWidth={3} />
+                  {lineChart.points.map((point, index) => (
+                    <circle key={`point-${index}`} cx={point.x} cy={point.y} r={3.5} fill="rgba(59, 130, 246, 0.9)" />
+                  ))}
+                  <text x={lineChart.padding} y={lineChart.padding - 8} fill="#9CA3AF" fontSize={10} fontWeight={700}>
+                    {formatTime(lineChart.maxValue)}
+                  </text>
+                  <text x={lineChart.padding} y={lineChart.height - lineChart.padding + 18} fill="#9CA3AF" fontSize={10} fontWeight={700}>
+                    {formatTime(lineChart.minValue)}
+                  </text>
+                </svg>
               </div>
             ) : (
               <p className="text-gray-400 font-bold">No maps available</p>
