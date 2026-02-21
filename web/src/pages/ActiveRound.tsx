@@ -250,12 +250,12 @@ export function ActiveRound() {
                 {/* Car Image */}
                 {player.car_name && (
                   <div className="mb-3 -mx-4 -mt-4 group relative">
-                    <div className="w-full h-32 overflow-hidden rounded-t-lg border-b-2 border-orange-500 bg-gradient-to-br from-gray-700 to-gray-800">
+                    <div className="w-full aspect-[16/10] overflow-hidden rounded-t-lg border-b-2 border-orange-500 bg-gradient-to-br from-gray-700 to-gray-800">
                       {carImage && (
                         <img
                           src={carImage}
                           alt={player.car_name}
-                          className="w-full h-32 object-cover"
+                          className="w-full h-full object-cover"
                         />
                       )}
                     </div>
