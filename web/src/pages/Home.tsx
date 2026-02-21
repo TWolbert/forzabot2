@@ -67,14 +67,14 @@ export function Home() {
   return (
     <div className="min-h-screen bg-black">
       {/* Hero Section */}
-      <div className="relative h-96 bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500 overflow-hidden mb-12">
+      <div className="relative h-64 bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500 overflow-hidden mb-10">
         <div className="absolute inset-0 opacity-20">
           <div className="absolute inset-0 bg-black transform -skew-y-3" style={{backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,100,0,0.5) 0%, transparent 50%)'}}></div>
         </div>
         <div className="relative h-full flex items-center justify-center">
           <div className="text-center text-white flex flex-col items-center gap-4">
-            <img src={logo} alt="ForzaBot Logo" className="h-32 drop-shadow-2xl" />
-            <h1 className="text-6xl font-black drop-shadow-lg">FORZABOT</h1>
+            <img src={logo} alt="ForzaBot Logo" className="h-24 drop-shadow-2xl" />
+            <h1 className="text-5xl font-black drop-shadow-lg">FORZABOT</h1>
           </div>
         </div>
       </div>
