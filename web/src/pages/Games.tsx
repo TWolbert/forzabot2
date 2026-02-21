@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getPastGames } from '../api'
+import { getCachedCarImage } from '../utils/carImageCache'
 import { Loader, Trophy, ChevronLeft } from 'lucide-react'
 
 interface Player {
@@ -128,9 +129,8 @@ export function GameDetail() {
           data.players.map(async (player: Player) => {
             if (!player.car_name) return player
             try {
-              const imgResponse = await fetch(`/api/car-image/${encodeURIComponent(player.car_name)}`)
-              const imgData = await imgResponse.json()
-              return { ...player, car_image: imgData.imageUrl }
+              const carImage = await getCachedCarImage(player.car_name)
+              return { ...player, car_image: carImage }
             } catch (error) {
               console.error(`Failed to fetch image for ${player.car_name}:`, error)
               return player

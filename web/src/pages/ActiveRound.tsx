@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader, ChevronLeft, Users, Trophy } from 'lucide-react'
+import { getCachedCarImage } from '../utils/carImageCache'
 
 interface Player {
   id: string
@@ -75,9 +76,8 @@ export function ActiveRound() {
       for (const player of round.players) {
         if (!player.car_name || images[player.car_name]) continue
         try {
-          const response = await fetch(`/api/car-image/${encodeURIComponent(player.car_name)}`)
-          const data = await response.json()
-          images[player.car_name] = data.imageUrl
+          const imageUrl = await getCachedCarImage(player.car_name)
+          images[player.car_name] = imageUrl
         } catch (error) {
           console.error(`Failed to fetch image for ${player.car_name}:`, error)
           images[player.car_name] = null

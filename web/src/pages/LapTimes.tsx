@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getTimes } from '../api'
+import { getCachedCarImage } from '../utils/carImageCache'
 import { Loader, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Time {
@@ -36,9 +37,8 @@ export function LapTimes() {
       for (const time of times) {
         if (!time.car_name || images[time.car_name]) continue
         try {
-          const response = await fetch(`/api/car-image/${encodeURIComponent(time.car_name)}`)
-          const data = await response.json()
-          images[time.car_name] = data.imageUrl
+          const imageUrl = await getCachedCarImage(time.car_name)
+          images[time.car_name] = imageUrl
         } catch (error) {
           console.error(`Failed to fetch image for ${time.car_name}:`, error)
           images[time.car_name] = null
@@ -222,9 +222,8 @@ export function TimeDetail() {
         
         const time = await response.json()
 
-        const imgResponse = await fetch(`/api/car-image/${encodeURIComponent(time.car_name)}`)
-        const imgData = await imgResponse.json()
-        setSelectedTime({ ...time, car_image: imgData.imageUrl })
+        const carImage = await getCachedCarImage(time.car_name)
+        setSelectedTime({ ...time, car_image: carImage })
       } catch (error) {
         console.error('Failed to fetch time details:', error)
       } finally {

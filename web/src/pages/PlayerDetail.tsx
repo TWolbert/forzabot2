@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, ChevronLeft, Trophy, Clock, ChevronRight } from 'lucide-react'
+import { Loader, ChevronLeft, Trophy, Clock, ChevronRight, ChevronDown } from 'lucide-react'
+import { getCachedCarImage } from '../utils/carImageCache'
 
 interface Player {
   id: string
@@ -45,6 +46,8 @@ export function PlayerDetail() {
   const [playerData, setPlayerData] = useState<PlayerData | null>(null)
   const [loading, setLoading] = useState(true)
   const [carsPage, setCarsPage] = useState(0)
+  const [gamesPage, setGamesPage] = useState(0)
+  const [gamesExpanded, setGamesExpanded] = useState(true)
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
 
   const formatTime = (ms: number) => {
@@ -100,6 +103,11 @@ export function PlayerDetail() {
   const paginatedCars = carStats.slice(carsPage * CARS_PER_PAGE, (carsPage + 1) * CARS_PER_PAGE)
   const totalPages = Math.ceil(carStats.length / CARS_PER_PAGE)
 
+  // Games pagination
+  const GAMES_PER_PAGE = 10
+  const paginatedGames = playerData?.games?.slice(gamesPage * GAMES_PER_PAGE, (gamesPage + 1) * GAMES_PER_PAGE) ?? []
+  const gamesTotalPages = playerData?.games ? Math.ceil(playerData.games.length / GAMES_PER_PAGE) : 1
+
   useEffect(() => {
     if (!playerId) return
 
@@ -127,9 +135,8 @@ export function PlayerDetail() {
       for (const car of paginatedCars) {
         if (!carImages[car.name]) {
           try {
-            const response = await fetch(`/api/car-image/${encodeURIComponent(car.name)}`)
-            const data = await response.json()
-            images[car.name] = data.imageUrl
+            const imageUrl = await getCachedCarImage(car.name)
+            images[car.name] = imageUrl
           } catch (error) {
             console.error(`Failed to fetch image for ${car.name}:`, error)
             images[car.name] = null
@@ -143,7 +150,7 @@ export function PlayerDetail() {
     if (paginatedCars.length > 0) {
       fetchCarImages()
     }
-  }, [carsPage, paginatedCars])
+  }, [carsPage, paginatedCars, carImages])
 
   if (loading) {
     return (
@@ -218,42 +225,78 @@ export function PlayerDetail() {
 
       {/* Games */}
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-yellow-500 drop-shadow-2xl">
-        <h2 className="text-3xl font-black text-yellow-400 mb-6 flex items-center gap-2 uppercase drop-shadow-lg">
-          <Trophy className="text-yellow-400" size={32} />
-          Games Played ({games.length})
-        </h2>
+        <button
+          onClick={() => setGamesExpanded(!gamesExpanded)}
+          className="w-full flex items-center gap-2 hover:opacity-80 transition"
+        >
+          <h2 className="text-3xl font-black text-yellow-400 flex items-center gap-2 uppercase drop-shadow-lg flex-1">
+            <Trophy className="text-yellow-400" size={32} />
+            Games Played ({games.length})
+          </h2>
+          <ChevronDown 
+            size={32} 
+            className={`text-yellow-400 transition-transform ${gamesExpanded ? 'rotate-180' : ''}`}
+          />
+        </button>
 
-        {games.length > 0 ? (
-          <div className="space-y-3">
-            {games.map(game => (
-              <Link
-                key={game.id}
-                to={`/games/${game.id}`}
-                className="border-4 border-yellow-500 rounded-lg p-4 hover:shadow-xl hover:bg-gray-700 transition block bg-gray-800 transform hover:scale-105 drop-shadow-lg"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-black text-yellow-300 text-lg">
-                      {formatRaceType(game.race_type)}
-                    </p>
-                    <p className="text-sm text-gray-400 font-bold">
-                      {formatDate(game.created_at)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-green-400 uppercase">
-                      {game.winner_id === playerId ? '🏆 Won' : `${game.num_players} players`}
-                    </p>
-                    {game.winner_id !== playerId && (
-                      <p className="text-sm text-gray-400 font-bold">Winner: {game.winner_name}</p>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-400 font-bold">No games played yet</p>
+        {gamesExpanded && (
+          <>
+            {games.length > 0 ? (
+              <div className="space-y-3 mt-6">
+                {paginatedGames.map(game => (
+                  <Link
+                    key={game.id}
+                    to={`/games/${game.id}`}
+                    className="border-4 border-yellow-500 rounded-lg p-4 hover:shadow-xl hover:bg-gray-700 transition block bg-gray-800 transform hover:scale-105 drop-shadow-lg"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-black text-yellow-300 text-lg">
+                          {formatRaceType(game.race_type)}
+                        </p>
+                        <p className="text-sm text-gray-400 font-bold">
+                          {formatDate(game.created_at)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-green-400 uppercase">
+                          {game.winner_id === playerId ? '🏆 Won' : `${game.num_players} players`}
+                        </p>
+                        {game.winner_id !== playerId && (
+                          <p className="text-sm text-gray-400 font-bold">Winner: {game.winner_name}</p>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400 font-bold mt-6">No games played yet</p>
+            )}
+
+            {/* Pagination */}
+            {gamesTotalPages > 1 && (
+              <div className="flex items-center justify-center gap-4 mt-6">
+                <button
+                  onClick={() => setGamesPage(Math.max(0, gamesPage - 1))}
+                  disabled={gamesPage === 0}
+                  className="p-2 rounded-lg border-2 border-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition text-yellow-400 font-black disabled:text-gray-600"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <span className="text-sm text-gray-400 font-bold">
+                  Page {gamesPage + 1} of {gamesTotalPages}
+                </span>
+                <button
+                  onClick={() => setGamesPage(Math.min(gamesTotalPages - 1, gamesPage + 1))}
+                  disabled={gamesPage === gamesTotalPages - 1}
+                  className="p-2 rounded-lg border-2 border-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition text-yellow-400 font-black disabled:text-gray-600"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
