@@ -236,35 +236,75 @@ export const getTopCarImage = async (carName: string): Promise<string | null> =>
   } catch (error) {
     console.warn(`Failed to read confirmed image for ${carName}:`, error);
   }
+  const getFandomCarImage = async (): Promise<string | null> => {
+    const baseUrl = "https://forza.fandom.com/api.php";
 
-  const baseUrl = "https://forza.fandom.com/api.php";
+    const searchUrl = new URL(baseUrl);
+    searchUrl.searchParams.set("action", "query");
+    searchUrl.searchParams.set("list", "search");
+    searchUrl.searchParams.set("srsearch", carName);
+    searchUrl.searchParams.set("srlimit", "1");
+    searchUrl.searchParams.set("format", "json");
 
-  const searchUrl = new URL(baseUrl);
-  searchUrl.searchParams.set("action", "query");
-  searchUrl.searchParams.set("list", "search");
-  searchUrl.searchParams.set("srsearch", carName);
-  searchUrl.searchParams.set("srlimit", "1");
-  searchUrl.searchParams.set("format", "json");
+    const searchData = await fetchJson<{
+      query?: { search?: Array<{ title?: string }> };
+    }>(searchUrl);
 
-  const searchData = await fetchJson<{
-    query?: { search?: Array<{ title?: string }> };
-  }>(searchUrl);
+    const topTitle = searchData?.query?.search?.[0]?.title;
+    if (!topTitle) return null;
 
-  const topTitle = searchData?.query?.search?.[0]?.title;
-  if (!topTitle) return null;
+    const imageUrl = new URL(baseUrl);
+    imageUrl.searchParams.set("action", "query");
+    imageUrl.searchParams.set("prop", "pageimages");
+    imageUrl.searchParams.set("pithumbsize", "800");
+    imageUrl.searchParams.set("titles", topTitle);
+    imageUrl.searchParams.set("format", "json");
 
-  const imageUrl = new URL(baseUrl);
-  imageUrl.searchParams.set("action", "query");
-  imageUrl.searchParams.set("prop", "pageimages");
-  imageUrl.searchParams.set("pithumbsize", "800");
-  imageUrl.searchParams.set("titles", topTitle);
-  imageUrl.searchParams.set("format", "json");
+    const imageData = await fetchJson<{
+      query?: { pages?: Record<string, { thumbnail?: { source?: string } }> };
+    }>(imageUrl);
 
-  const imageData = await fetchJson<{
-    query?: { pages?: Record<string, { thumbnail?: { source?: string } }> };
-  }>(imageUrl);
+    const pages = imageData?.query?.pages ?? {};
+    const firstPage = Object.values(pages)[0];
+    return firstPage?.thumbnail?.source ?? null;
+  };
 
-  const pages = imageData?.query?.pages ?? {};
-  const firstPage = Object.values(pages)[0];
-  return firstPage?.thumbnail?.source ?? null;
+  const getWikipediaCarImage = async (): Promise<string | null> => {
+    const baseUrl = "https://en.wikipedia.org/w/api.php";
+
+    const searchUrl = new URL(baseUrl);
+    searchUrl.searchParams.set("action", "query");
+    searchUrl.searchParams.set("list", "search");
+    searchUrl.searchParams.set("srsearch", carName);
+    searchUrl.searchParams.set("srlimit", "1");
+    searchUrl.searchParams.set("format", "json");
+    searchUrl.searchParams.set("origin", "*");
+
+    const searchData = await fetchJson<{
+      query?: { search?: Array<{ title?: string }> };
+    }>(searchUrl);
+
+    const topTitle = searchData?.query?.search?.[0]?.title;
+    if (!topTitle) return null;
+
+    const imageUrl = new URL(baseUrl);
+    imageUrl.searchParams.set("action", "query");
+    imageUrl.searchParams.set("prop", "pageimages");
+    imageUrl.searchParams.set("pithumbsize", "800");
+    imageUrl.searchParams.set("titles", topTitle);
+    imageUrl.searchParams.set("format", "json");
+    imageUrl.searchParams.set("origin", "*");
+
+    const imageData = await fetchJson<{
+      query?: { pages?: Record<string, { thumbnail?: { source?: string } }> };
+    }>(imageUrl);
+
+    const pages = imageData?.query?.pages ?? {};
+    const firstPage = Object.values(pages)[0];
+    return firstPage?.thumbnail?.source ?? null;
+  };
+
+  const fandomImage = await getFandomCarImage();
+  if (fandomImage) return fandomImage;
+  return getWikipediaCarImage();
 };
