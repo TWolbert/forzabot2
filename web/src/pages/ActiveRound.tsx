@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Loader, ChevronLeft, Users, Trophy } from 'lucide-react'
 import { getCachedCarImage } from '../utils/carImageCache'
 
@@ -23,9 +23,12 @@ interface ActiveRoundData {
 }
 
 export function ActiveRound() {
+  const navigate = useNavigate()
   const [round, setRound] = useState<ActiveRoundData | null>(null)
   const [loading, setLoading] = useState(true)
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
+  const lastRoundIdRef = useRef<string | null>(null)
+  const redirectedRef = useRef(false)
 
   useEffect(() => {
     let mounted = true
@@ -36,9 +39,16 @@ export function ActiveRound() {
         if (!mounted) return
         
         if (!response.ok) {
+          if (lastRoundIdRef.current && !redirectedRef.current) {
+            redirectedRef.current = true
+            navigate(`/games/${lastRoundIdRef.current}`)
+            return
+          }
           throw new Error('No active round')
         }
+
         const data = await response.json()
+        lastRoundIdRef.current = data.id
         
         // Only update state if data has changed
         setRound(prevRound => {
