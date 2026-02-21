@@ -228,10 +228,10 @@ export const getRaceIconPath = async (raceType: string): Promise<string | null> 
 };
 
 export const getTopCarImage = async (carName: string): Promise<string | null> => {
-  const baseUrl = process.env.IMAGE_BASE_URL?.replace(/\/$/, "") || "";
+  const baseUrl = (process.env.IMAGE_BASE_URL || "http://195.201.109.31:34234").replace(/\/$/, "");
   const toAbsoluteUrl = (url: string) => {
     if (!url.startsWith("/")) return url;
-    return baseUrl ? `${baseUrl}${url}` : url;
+    return `${baseUrl}${url}`;
   };
 
   try {
