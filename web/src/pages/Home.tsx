@@ -119,7 +119,7 @@ export function Home() {
         </div>
         <div className="relative h-full flex items-center justify-center">
           <div className="text-center text-white flex flex-col items-center gap-4">
-            <img src={logo} alt="ForzaBot Logo" className="h-24 drop-shadow-2xl" />
+            <img src={logo} alt="ForzaBot Logo" className="h-28 drop-shadow-2xl" />
           </div>
         </div>
       </div>
@@ -131,10 +131,10 @@ export function Home() {
             {hasActiveRound && (
               <Link
                 to="/active-round"
-                className="group relative overflow-hidden rounded-xl shadow-2xl h-48 cursor-pointer transform transition hover:scale-105 border-4 border-orange-500"
+                className="md:col-span-2 group relative overflow-hidden rounded-xl shadow-2xl h-48 cursor-pointer transform transition hover:scale-105 border-4 border-orange-500"
                 style={{
                   backgroundImage: activeRoundImage
-                    ? `linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%), url('${activeRoundImage}')`
+                    ? `linear-gradient(135deg, rgba(249, 115, 22, 0.85) 0%, rgba(239, 68, 68, 0.75) 100%), url('${activeRoundImage}')`
                     : 'linear-gradient(135deg, rgb(249, 115, 22) 0%, rgb(239, 68, 68) 100%)',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center'
