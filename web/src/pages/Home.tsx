@@ -75,18 +75,18 @@ export function Home() {
           <div className="text-center text-white flex flex-col items-center gap-4">
             <img src={logo} alt="ForzaBot Logo" className="h-32 drop-shadow-2xl" />
             <h1 className="text-6xl font-black drop-shadow-lg">FORZABOT</h1>
-            <p className="text-2xl font-bold drop-shadow-lg">Racing Statistics Dashboard</p>
           </div>
         </div>
       </div>
 
       {/* Main Grid */}
-      <div className="max-w-7xl mx-auto px-4 pb-16">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-max">
-          {/* Large Games Tile with Car Background */}
-          <Link
-            to="/games"
-            className="md:col-span-2 md:row-span-2 group relative overflow-hidden rounded-xl shadow-2xl h-96 cursor-pointer transform transition hover:scale-105 border-4 border-yellow-500"
+      <div className="mx-auto px-4 pb-16 flex justify-center">
+        <div className="w-full max-w-6xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 auto-rows-max">
+            {/* Large Games Tile with Car Background */}
+            <Link
+              to="/games"
+              className="md:col-span-2 group relative overflow-hidden rounded-xl shadow-2xl h-96 cursor-pointer transform transition hover:scale-105 border-4 border-yellow-500"
             style={{
               backgroundImage: 'linear-gradient(135deg, rgb(250, 204, 21) 0%, rgb(217, 119, 6) 100%)',
               backgroundSize: 'cover',
@@ -178,6 +178,7 @@ export function Home() {
               <h3 className="text-2xl font-black text-center drop-shadow-lg">RACES</h3>
             </div>
           </Link>
+        </div>
         </div>
       </div>
     </div>
