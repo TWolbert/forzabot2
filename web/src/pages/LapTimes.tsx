@@ -53,21 +53,21 @@ export function LapTimes() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-8">
-      <h2 className="text-3xl font-bold mb-6 text-gray-800 flex items-center gap-2">
-        <Clock className="text-blue-500" size={32} />
-        Lap Times
+    <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-cyan-500 drop-shadow-2xl">
+      <h2 className="text-5xl font-black mb-6 text-cyan-400 flex items-center gap-3 drop-shadow-lg">
+        <Clock className="text-cyan-400" size={40} />
+        LAP TIMES
       </h2>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b-2 border-gray-300">
-              <th className="text-left py-3 px-4 font-bold text-gray-700">Player</th>
-              <th className="text-left py-3 px-4 font-bold text-gray-700">Car</th>
-              <th className="text-left py-3 px-4 font-bold text-gray-700">Track</th>
-              <th className="text-center py-3 px-4 font-bold text-gray-700">Time</th>
-              <th className="text-center py-3 px-4 font-bold text-gray-700">Date</th>
+            <tr className="border-b-4 border-cyan-500 bg-gradient-to-r from-cyan-600 to-blue-600">
+              <th className="text-left py-4 px-4 font-black text-white text-lg">PLAYER</th>
+              <th className="text-left py-4 px-4 font-black text-white text-lg">CAR</th>
+              <th className="text-left py-4 px-4 font-black text-white text-lg">TRACK</th>
+              <th className="text-center py-4 px-4 font-black text-white text-lg">TIME</th>
+              <th className="text-center py-4 px-4 font-black text-white text-lg">DATE</th>
             </tr>
           </thead>
           <tbody>
@@ -75,27 +75,27 @@ export function LapTimes() {
               <tr 
                 key={time.id}
                 onClick={() => window.location.href = `/times/${time.id}`}
-                className="border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer"
+                className="border-b-2 border-gray-700 hover:bg-gray-700 transition cursor-pointer transform hover:scale-105"
               >
-                <td className="py-3 px-4 font-medium text-gray-800">
+                <td className="py-4 px-4 font-black text-cyan-300">
                   <Link
                     to={`/players/${time.player_id}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-green-600 hover:text-green-700 hover:underline"
+                    className="text-cyan-300 hover:text-cyan-200 hover:underline transition"
                   >
                     {time.player_name}
                   </Link>
                 </td>
-                <td className="py-3 px-4 text-gray-700">
+                <td className="py-4 px-4 text-white font-bold">
                   {time.car_name}
                 </td>
-                <td className="py-3 px-4 text-gray-700">
+                <td className="py-4 px-4 text-white font-bold">
                   {time.race_name}
                 </td>
-                <td className="py-3 px-4 text-center font-bold text-blue-600">
+                <td className="py-4 px-4 text-center font-black text-cyan-300 text-lg">
                   {formatTime(time.time_ms)}
                 </td>
-                <td className="py-3 px-4 text-center text-gray-500">
+                <td className="py-4 px-4 text-center text-gray-400 font-bold">
                   {formatDate(time.created_at)}
                 </td>
               </tr>
@@ -105,7 +105,7 @@ export function LapTimes() {
       </div>
 
       {times.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-gray-400 text-lg font-bold">
           No lap times recorded yet
         </div>
       )}
@@ -176,24 +176,24 @@ export function TimeDetail() {
 
   if (!selectedTime) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-cyan-500 drop-shadow-2xl">
         <Link
           to="/times"
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6 font-semibold"
+          className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 mb-6 font-black transition"
         >
           <ChevronLeft size={20} />
           Back to Times
         </Link>
-        <p className="text-gray-500">Time not found</p>
+        <p className="text-gray-400 text-lg font-bold">Time not found</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-8">
+    <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-cyan-500 drop-shadow-2xl">
       <Link
         to="/times"
-        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6 font-semibold"
+        className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 mb-6 font-black transition"
       >
         <ChevronLeft size={20} />
         Back to Times
@@ -204,17 +204,17 @@ export function TimeDetail() {
           {/* Car Image */}
           <div className="md:col-span-1">
             {imageLoading ? (
-              <div className="flex justify-center items-center h-80 bg-gray-100 rounded-lg">
-                <Loader className="animate-spin" size={40} />
+              <div className="flex justify-center items-center h-80 bg-gray-800 rounded-lg border-2 border-cyan-500">
+                <Loader className="animate-spin text-cyan-400" size={40} />
               </div>
             ) : selectedTime.car_image ? (
               <img
                 src={selectedTime.car_image}
                 alt={selectedTime.car_name}
-                className="w-full aspect-video object-cover rounded-lg shadow-md"
+                className="w-full aspect-video object-cover rounded-lg shadow-xl border-2 border-cyan-500 drop-shadow-lg"
               />
             ) : (
-              <div className="flex items-center justify-center w-full aspect-video bg-gray-100 rounded-lg text-gray-500">
+              <div className="flex items-center justify-center w-full aspect-video bg-gray-800 rounded-lg text-gray-500 border-2 border-cyan-500">
                 No image available
               </div>
             )}
@@ -222,39 +222,39 @@ export function TimeDetail() {
 
           {/* Details */}
           <div className="md:col-span-2">
-            <h2 className="text-3xl font-bold text-gray-800 mb-6">Lap Time Details</h2>
+            <h2 className="text-5xl font-black text-cyan-400 mb-6 drop-shadow-lg">LAP TIME DETAILS</h2>
 
             <div className="space-y-4">
-              <div className="border-b border-gray-200 pb-4">
-                <p className="text-sm text-gray-600">Player</p>
+              <div className="border-b-2 border-gray-700 pb-4">
+                <p className="text-xs font-black text-cyan-400 uppercase">Player</p>
                 <Link
                   to={`/players/${selectedTime.player_id}`}
-                  className="text-2xl font-bold text-green-600 hover:text-green-700 hover:underline"
+                  className="text-3xl font-black text-cyan-300 hover:text-cyan-200 hover:underline transition drop-shadow-lg"
                 >
                   {selectedTime.player_name}
                 </Link>
               </div>
 
-              <div className="border-b border-gray-200 pb-4">
-                <p className="text-sm text-gray-600">Car</p>
-                <p className="text-2xl font-bold text-gray-800">{selectedTime.car_name}</p>
+              <div className="border-b-2 border-gray-700 pb-4">
+                <p className="text-xs font-black text-cyan-400 uppercase">Car</p>
+                <p className="text-2xl font-black text-white drop-shadow-lg">{selectedTime.car_name}</p>
               </div>
 
-              <div className="border-b border-gray-200 pb-4">
-                <p className="text-sm text-gray-600">Track</p>
-                <p className="text-2xl font-bold text-gray-800">{selectedTime.race_name}</p>
+              <div className="border-b-2 border-gray-700 pb-4">
+                <p className="text-xs font-black text-cyan-400 uppercase">Track</p>
+                <p className="text-2xl font-black text-white drop-shadow-lg">{selectedTime.race_name}</p>
               </div>
 
-              <div className="border-b border-gray-200 pb-4">
-                <p className="text-sm text-gray-600">Lap Time</p>
-                <p className="text-3xl font-bold text-blue-600">
+              <div className="border-b-2 border-gray-700 pb-4">
+                <p className="text-xs font-black text-cyan-400 uppercase">Lap Time</p>
+                <p className="text-4xl font-black text-cyan-300 drop-shadow-lg">
                   {formatTime(selectedTime.time_ms)}
                 </p>
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600">Recorded</p>
-                <p className="text-lg text-gray-800">{formatDate(selectedTime.created_at)}</p>
+              <div className="bg-gray-800 p-4 rounded-lg border-2 border-cyan-500">
+                <p className="text-xs font-black text-cyan-400 uppercase">Recorded</p>
+                <p className="text-lg font-bold text-white">{formatDate(selectedTime.created_at)}</p>
               </div>
             </div>
           </div>

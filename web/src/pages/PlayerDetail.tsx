@@ -155,15 +155,15 @@ export function PlayerDetail() {
 
   if (!playerData) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-green-500 drop-shadow-2xl">
         <Link
           to="/"
-          className="flex items-center gap-2 text-green-600 hover:text-green-700 mb-6 font-semibold"
+          className="flex items-center gap-2 text-green-400 hover:text-green-300 mb-6 font-black transition"
         >
           <ChevronLeft size={20} />
           Back to Leaderboard
         </Link>
-        <p className="text-gray-500">Player not found</p>
+        <p className="text-gray-400 text-lg font-bold">Player not found</p>
       </div>
     )
   }
@@ -173,43 +173,43 @@ export function PlayerDetail() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-green-500 drop-shadow-2xl">
         <Link
           to="/"
-          className="flex items-center gap-2 text-green-600 hover:text-green-700 mb-6 font-semibold"
+          className="flex items-center gap-2 text-green-400 hover:text-green-300 mb-6 font-black transition"
         >
           <ChevronLeft size={20} />
           Back to Leaderboard
         </Link>
 
         <div className="mb-6">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
+          <h1 className="text-5xl font-black text-green-400 mb-2 drop-shadow-lg">
             {player.display_name}
           </h1>
-          <p className="text-gray-500">@{player.username}</p>
+          <p className="text-gray-400 font-bold">@{player.username}</p>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Games Played</p>
-            <p className="text-3xl font-bold text-green-600">{stats.games_played}</p>
+          <div className="bg-gray-800 p-4 rounded-lg border-2 border-green-500">
+            <p className="text-xs font-black text-green-400 mb-2 uppercase">Games Played</p>
+            <p className="text-3xl font-black text-white drop-shadow-lg">{stats.games_played}</p>
           </div>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1 flex items-center gap-1">
-              <Trophy size={16} className="text-yellow-500" /> Wins
+          <div className="bg-gray-800 p-4 rounded-lg border-2 border-yellow-500">
+            <p className="text-xs font-black text-yellow-400 mb-2 flex items-center gap-1 uppercase">
+              <Trophy size={16} className="text-yellow-400" /> Wins
             </p>
-            <p className="text-3xl font-bold text-yellow-600">{stats.wins}</p>
+            <p className="text-3xl font-black text-white drop-shadow-lg">{stats.wins}</p>
           </div>
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Times Recorded</p>
-            <p className="text-3xl font-bold text-blue-600">{stats.times_recorded}</p>
+          <div className="bg-gray-800 p-4 rounded-lg border-2 border-cyan-500">
+            <p className="text-xs font-black text-cyan-400 mb-2 uppercase">Times Recorded</p>
+            <p className="text-3xl font-black text-white drop-shadow-lg">{stats.times_recorded}</p>
           </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1 flex items-center gap-1">
-              <Clock size={16} className="text-purple-500" /> Fastest Time
+          <div className="bg-gray-800 p-4 rounded-lg border-2 border-purple-500">
+            <p className="text-xs font-black text-purple-400 mb-2 flex items-center gap-1 uppercase">
+              <Clock size={16} className="text-purple-400" /> Fastest Time
             </p>
-            <p className="text-3xl font-bold text-purple-600">
+            <p className="text-3xl font-black text-white drop-shadow-lg">
               {stats.fastest_time ? formatTime(stats.fastest_time) : 'N/A'}
             </p>
           </div>
@@ -217,9 +217,9 @@ export function PlayerDetail() {
       </div>
 
       {/* Games */}
-      <div className="bg-white rounded-lg shadow-lg p-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-          <Trophy className="text-yellow-500" size={28} />
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-yellow-500 drop-shadow-2xl">
+        <h2 className="text-3xl font-black text-yellow-400 mb-6 flex items-center gap-2 uppercase drop-shadow-lg">
+          <Trophy className="text-yellow-400" size={32} />
           Games Played ({games.length})
         </h2>
 
@@ -229,23 +229,23 @@ export function PlayerDetail() {
               <Link
                 key={game.id}
                 to={`/games/${game.id}`}
-                className="border border-gray-200 rounded-lg p-4 hover:shadow-md hover:bg-gray-50 transition block"
+                className="border-4 border-yellow-500 rounded-lg p-4 hover:shadow-xl hover:bg-gray-700 transition block bg-gray-800 transform hover:scale-105 drop-shadow-lg"
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-semibold text-gray-800">
+                    <p className="font-black text-yellow-300 text-lg">
                       {formatRaceType(game.race_type)}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-400 font-bold">
                       {formatDate(game.created_at)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold text-green-600">
+                    <p className="text-sm font-black text-green-400 uppercase">
                       {game.winner_id === playerId ? '🏆 Won' : `${game.num_players} players`}
                     </p>
                     {game.winner_id !== playerId && (
-                      <p className="text-sm text-gray-600">Winner: {game.winner_name}</p>
+                      <p className="text-sm text-gray-400 font-bold">Winner: {game.winner_name}</p>
                     )}
                   </div>
                 </div>
@@ -253,21 +253,21 @@ export function PlayerDetail() {
             ))}
           </div>
         ) : (
-          <p className="text-gray-500">No games played yet</p>
+          <p className="text-gray-400 font-bold">No games played yet</p>
         )}
       </div>
 
       {/* Cars Driven */}
       {carStats.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-purple-500 drop-shadow-2xl">
+          <h2 className="text-3xl font-black text-purple-400 mb-6 uppercase drop-shadow-lg">
             Cars Driven ({carStats.length})
           </h2>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-6">
             {paginatedCars.map(car => (
               <div key={car.name} className="flex flex-col items-center">
-                <div className="w-full aspect-video bg-gray-100 rounded-lg overflow-hidden mb-2 flex items-center justify-center">
+                <div className="w-full aspect-video bg-gray-800 rounded-lg overflow-hidden mb-2 flex items-center justify-center border-2 border-purple-500">
                   {carImages[car.name] ? (
                     <img
                       src={carImages[car.name]}
@@ -275,15 +275,15 @@ export function PlayerDetail() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                      <span className="text-gray-400 text-xs text-center px-2">No image</span>
+                    <div className="w-full h-full flex items-center justify-center bg-gray-700">
+                      <span className="text-gray-500 font-bold text-xs text-center px-2">No image</span>
                     </div>
                   )}
                 </div>
-                <p className="text-sm font-medium text-gray-800 text-center line-clamp-2">
+                <p className="text-sm font-black text-purple-300 text-center line-clamp-2">
                   {car.name}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-400 mt-1 font-bold">
                   {car.count} time{car.count !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -296,17 +296,17 @@ export function PlayerDetail() {
               <button
                 onClick={() => setCarsPage(Math.max(0, carsPage - 1))}
                 disabled={carsPage === 0}
-                className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
+                className="p-2 rounded-lg border-2 border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition text-purple-400 font-black disabled:text-gray-600"
               >
                 <ChevronLeft size={20} />
               </button>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-400 font-bold">
                 Page {carsPage + 1} of {totalPages}
               </span>
               <button
                 onClick={() => setCarsPage(Math.min(totalPages - 1, carsPage + 1))}
                 disabled={carsPage === totalPages - 1}
-                className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
+                className="p-2 rounded-lg border-2 border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition text-purple-400 font-black disabled:text-gray-600"
               >
                 <ChevronRight size={20} />
               </button>
@@ -316,9 +316,9 @@ export function PlayerDetail() {
       )}
 
       {/* Times */}
-      <div className="bg-white rounded-lg shadow-lg p-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-          <Clock className="text-blue-500" size={28} />
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-cyan-500 drop-shadow-2xl">
+        <h2 className="text-3xl font-black text-cyan-400 mb-6 flex items-center gap-2 uppercase drop-shadow-lg">
+          <Clock className="text-cyan-400" size={32} />
           Lap Times ({times.length})
         </h2>
 
@@ -326,11 +326,11 @@ export function PlayerDetail() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b-2 border-gray-300">
-                  <th className="text-left py-3 px-4 font-bold text-gray-700">Car</th>
-                  <th className="text-left py-3 px-4 font-bold text-gray-700">Track</th>
-                  <th className="text-center py-3 px-4 font-bold text-gray-700">Time</th>
-                  <th className="text-center py-3 px-4 font-bold text-gray-700">Date</th>
+                <tr className="border-b-4 border-cyan-500 bg-gradient-to-r from-cyan-600 to-blue-600">
+                  <th className="text-left py-4 px-4 font-black text-white text-lg">CAR</th>
+                  <th className="text-left py-4 px-4 font-black text-white text-lg">TRACK</th>
+                  <th className="text-center py-4 px-4 font-black text-white text-lg">TIME</th>
+                  <th className="text-center py-4 px-4 font-black text-white text-lg">DATE</th>
                 </tr>
               </thead>
               <tbody>
@@ -338,14 +338,14 @@ export function PlayerDetail() {
                   <tr
                     key={time.id}
                     onClick={() => (window.location.href = `/times/${time.id}`)}
-                    className="border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer"
+                    className="border-b-2 border-gray-700 hover:bg-gray-700 transition cursor-pointer transform hover:scale-105"
                   >
-                    <td className="py-3 px-4 text-gray-700">{time.car_name}</td>
-                    <td className="py-3 px-4 text-gray-700">{time.race_name}</td>
-                    <td className="py-3 px-4 text-center font-bold text-blue-600">
+                    <td className="py-4 px-4 text-white font-bold">{time.car_name}</td>
+                    <td className="py-4 px-4 text-white font-bold">{time.race_name}</td>
+                    <td className="py-4 px-4 text-center font-black text-cyan-300 text-lg">
                       {formatTime(time.time_ms)}
                     </td>
-                    <td className="py-3 px-4 text-center text-gray-500">
+                    <td className="py-4 px-4 text-center text-gray-400 font-bold">
                       {formatDate(time.created_at)}
                     </td>
                   </tr>
@@ -354,7 +354,7 @@ export function PlayerDetail() {
             </table>
           </div>
         ) : (
-          <p className="text-gray-500">No lap times recorded yet</p>
+          <p className="text-gray-400 font-bold">No lap times recorded yet</p>
         )}
       </div>
     </div>

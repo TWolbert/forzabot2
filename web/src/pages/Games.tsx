@@ -66,42 +66,42 @@ export function Games() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-8">
-      <h2 className="text-3xl font-bold mb-6 text-gray-800 flex items-center gap-2">
-        <Trophy className="text-yellow-500" size={32} />
-        Past Games
+    <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl shadow-2xl p-8 border-4 border-yellow-500">
+      <h2 className="text-5xl font-black mb-8 text-yellow-400 drop-shadow-lg flex items-center gap-2" style={{textShadow: '2px 2px 4px rgba(0,0,0,0.8)'}}>
+        <Trophy className="text-yellow-400" size={50} />
+        PAST GAMES
       </h2>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {games.map(game => (
           <Link
             key={game.id}
             to={`/games/${game.id}`}
-            className="border border-gray-200 rounded-lg p-4 hover:shadow-md hover:bg-gray-50 transition cursor-pointer block"
+            className="border-4 border-yellow-500 rounded-lg p-4 hover:shadow-xl hover:bg-gray-700 transition cursor-pointer block bg-gray-800 transform hover:scale-105"
           >
             <div className="flex justify-between items-start mb-2">
               <div>
-                <p className="font-semibold text-gray-800 text-lg">
+                <p className="font-black text-yellow-300 text-2xl">
                   {formatRaceType(game.race_type)}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-400">
                   {formatDate(game.created_at)}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-bold text-green-600">Winner</p>
-                <p className="font-semibold text-gray-800">{game.winner_name}</p>
+                <p className="text-sm font-black text-green-400">Winner</p>
+                <p className="font-black text-white text-lg">{game.winner_name}</p>
               </div>
             </div>
-            <div className="text-xs text-gray-500">
-              {game.num_players} players
+            <div className="text-xs text-gray-400 font-bold">
+              {game.num_players} PLAYERS
             </div>
           </Link>
         ))}
       </div>
 
       {games.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-gray-400 text-lg font-bold">
           No games played yet
         </div>
       )}
@@ -187,10 +187,10 @@ export function GameDetail() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-8">
+    <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-yellow-500 drop-shadow-2xl">
       <Link
         to="/games"
-        className="flex items-center gap-2 text-green-600 hover:text-green-700 mb-6 font-semibold"
+        className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 mb-6 font-black transition"
       >
         <ChevronLeft size={20} />
         Back to Games
@@ -199,18 +199,18 @@ export function GameDetail() {
       <div className="mb-6">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h2 className="text-3xl font-bold text-gray-800">
+            <h2 className="text-5xl font-black text-yellow-400 drop-shadow-lg">
               {formatRaceType(selectedGame.race_type)}
             </h2>
-            <p className="text-gray-500 mt-2">
+            <p className="text-gray-400 mt-2 font-bold">
               {formatDate(selectedGame.created_at)}
             </p>
           </div>
           <div className="text-right">
-            <p className="text-sm font-bold text-green-600">Winner</p>
+            <p className="text-sm font-black text-green-400 uppercase">Winner</p>
             <Link
               to={`/players/${selectedGame.winner_id}`}
-              className="text-2xl font-bold text-green-600 hover:text-green-700 hover:underline"
+              className="text-3xl font-black text-green-400 hover:text-green-300 hover:underline transition drop-shadow-lg"
             >
               {selectedGame.winner_name}
             </Link>
@@ -218,13 +218,13 @@ export function GameDetail() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Class</p>
-            <p className="text-xl font-bold text-gray-800">{selectedGame.class || 'N/A'}</p>
+          <div className="bg-gray-800 p-4 rounded-lg border-2 border-yellow-500">
+            <p className="text-xs font-black text-yellow-400 uppercase">Class</p>
+            <p className="text-2xl font-black text-white drop-shadow-lg">{selectedGame.class || 'N/A'}</p>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Value Range</p>
-            <p className="text-xl font-bold text-gray-800">
+          <div className="bg-gray-800 p-4 rounded-lg border-2 border-yellow-500">
+            <p className="text-xs font-black text-yellow-400 uppercase">Value Range</p>
+            <p className="text-2xl font-black text-white drop-shadow-lg">
               {selectedGame.value ? formatCurrency(selectedGame.value) : 'N/A'}
             </p>
           </div>
@@ -232,34 +232,34 @@ export function GameDetail() {
       </div>
 
       <div>
-        <h3 className="text-xl font-bold text-gray-800 mb-4">Players ({selectedGame.players.length})</h3>
+        <h3 className="text-3xl font-black text-yellow-400 mb-4 uppercase drop-shadow-lg">Players ({selectedGame.players.length})</h3>
         <div className="grid grid-cols-1 gap-3">
           {selectedGame.players.map(player => (
             <div
               key={player.id}
-              className="flex items-center gap-4 bg-gray-50 p-3 rounded-lg"
+              className="flex items-center gap-4 bg-gray-800 p-4 rounded-lg border-4 border-yellow-500 hover:bg-gray-700 hover:scale-105 transform transition drop-shadow-lg"
             >
               {player.car_image && (
                 <img
                   src={player.car_image}
                   alt={player.car_name}
-                  className="w-32 aspect-video object-cover rounded"
+                  className="w-32 aspect-video object-cover rounded border-2 border-yellow-500"
                 />
               )}
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <Link
                     to={`/players/${player.id}`}
-                    className="font-medium text-green-600 hover:text-green-700 hover:underline"
+                    className="font-black text-yellow-300 hover:text-yellow-200 hover:underline transition text-lg"
                   >
                     {player.display_name}
                   </Link>
                   {selectedGame.winner_id === player.id && (
-                    <Trophy className="text-yellow-500" size={18} />
+                    <Trophy className="text-yellow-400 drop-shadow-lg" size={24} />
                   )}
                 </div>
                 {player.car_name && (
-                  <span className="text-sm text-gray-600">{player.car_name}</span>
+                  <span className="text-sm text-gray-400 font-bold">{player.car_name}</span>
                 )}
               </div>
             </div>
