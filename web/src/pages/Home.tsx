@@ -3,7 +3,14 @@ import { Link } from 'react-router-dom'
 import { Trophy, Gamepad2, Clock } from 'lucide-react'
 import logo from '../5a59366f-e744-498c-9142-270c4f2069d1.png'
 
-const PROMO_CARS = ['Lamborghini Huracán', 'Ferrari 458', 'Bugatti Veyron']
+const PROMO_CARS = [
+  'Lamborghini Huracán', 
+  'Ferrari 458', 
+  'Bugatti Veyron',
+  'Porsche 911 Turbo',
+  'McLaren 720S',
+  'Chevrolet Corvette'
+]
 
 export function Home() {
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})

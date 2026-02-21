@@ -1,9 +1,27 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Trophy, Gamepad2, Clock } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Home, Trophy, Gamepad2, Clock, Zap } from 'lucide-react'
 import logo from '../5a59366f-e744-498c-9142-270c4f2069d1.png'
 
 export function Navigation() {
   const location = useLocation()
+  const [hasActiveRound, setHasActiveRound] = useState(false)
+
+  useEffect(() => {
+    const checkActiveRound = async () => {
+      try {
+        const response = await fetch('/api/current-round')
+        setHasActiveRound(response.ok)
+      } catch (error) {
+        setHasActiveRound(false)
+      }
+    }
+
+    checkActiveRound()
+    // Check every 5 seconds for active round status
+    const interval = setInterval(checkActiveRound, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/'
@@ -20,6 +38,21 @@ export function Navigation() {
           </Link>
           
           <div className="flex gap-1">
+            {hasActiveRound && (
+              <Link
+                to="/active-round"
+                className={`flex items-center gap-2 px-4 py-2 font-bold transition transform hover:scale-110 animate-pulse ${
+                  location.pathname === '/active-round'
+                    ? 'bg-white text-red-600 shadow-lg'
+                    : 'bg-red-600 hover:bg-red-700 shadow-lg'
+                }`}
+                style={{clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)'}}
+                title="Active game in progress!"
+              >
+                <Zap size={18} />
+                LIVE
+              </Link>
+            )}
             <Link
               to="/"
               className={`flex items-center gap-2 px-4 py-2 font-bold transition transform hover:scale-110 ${

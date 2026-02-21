@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getTimes } from '../api'
-import { Loader, Clock, ChevronLeft } from 'lucide-react'
+import { Loader, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Time {
   id: string
@@ -14,9 +14,13 @@ interface Time {
   car_image?: string
 }
 
+const ITEMS_PER_PAGE = 12
+
 export function LapTimes() {
   const [times, setTimes] = useState<Time[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [carImages, setCarImages] = useState<Record<string, string | null>>({})
 
   useEffect(() => {
     getTimes()
@@ -24,6 +28,30 @@ export function LapTimes() {
       .catch(err => console.error(err))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    const fetchCarImages = async () => {
+      const images: Record<string, string | null> = {}
+      
+      for (const time of times) {
+        if (!time.car_name || images[time.car_name]) continue
+        try {
+          const response = await fetch(`/api/car-image/${encodeURIComponent(time.car_name)}`)
+          const data = await response.json()
+          images[time.car_name] = data.imageUrl
+        } catch (error) {
+          console.error(`Failed to fetch image for ${time.car_name}:`, error)
+          images[time.car_name] = null
+        }
+      }
+      
+      setCarImages(images)
+    }
+
+    if (times.length > 0) {
+      fetchCarImages()
+    }
+  }, [times])
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000)
@@ -47,67 +75,109 @@ export function LapTimes() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
-        <Loader className="animate-spin" size={40} />
+        <Loader className="animate-spin text-cyan-400" size={40} />
       </div>
     )
   }
 
+  const totalPages = Math.ceil(times.length / ITEMS_PER_PAGE)
+  const paginatedTimes = times.slice(
+    currentPage * ITEMS_PER_PAGE,
+    (currentPage + 1) * ITEMS_PER_PAGE
+  )
+
   return (
     <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-cyan-500 drop-shadow-2xl">
-      <h2 className="text-5xl font-black mb-6 text-cyan-400 flex items-center gap-3 drop-shadow-lg">
+      <h2 className="text-5xl font-black mb-8 text-cyan-400 flex items-center gap-3 drop-shadow-lg">
         <Clock className="text-cyan-400" size={40} />
         LAP TIMES
       </h2>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b-4 border-cyan-500 bg-gradient-to-r from-cyan-600 to-blue-600">
-              <th className="text-left py-4 px-4 font-black text-white text-lg">PLAYER</th>
-              <th className="text-left py-4 px-4 font-black text-white text-lg">CAR</th>
-              <th className="text-left py-4 px-4 font-black text-white text-lg">TRACK</th>
-              <th className="text-center py-4 px-4 font-black text-white text-lg">TIME</th>
-              <th className="text-center py-4 px-4 font-black text-white text-lg">DATE</th>
-            </tr>
-          </thead>
-          <tbody>
-            {times.map(time => (
-              <tr 
-                key={time.id}
-                onClick={() => window.location.href = `/times/${time.id}`}
-                className="border-b-2 border-gray-700 hover:bg-gray-700 transition cursor-pointer transform hover:scale-105"
-              >
-                <td className="py-4 px-4 font-black text-cyan-300">
-                  <Link
-                    to={`/players/${time.player_id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-cyan-300 hover:text-cyan-200 hover:underline transition"
-                  >
-                    {time.player_name}
-                  </Link>
-                </td>
-                <td className="py-4 px-4 text-white font-bold">
-                  {time.car_name}
-                </td>
-                <td className="py-4 px-4 text-white font-bold">
-                  {time.race_name}
-                </td>
-                <td className="py-4 px-4 text-center font-black text-cyan-300 text-lg">
-                  {formatTime(time.time_ms)}
-                </td>
-                <td className="py-4 px-4 text-center text-gray-400 font-bold">
-                  {formatDate(time.created_at)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {times.length === 0 && (
-        <div className="text-center py-8 text-gray-400 text-lg font-bold">
+      {times.length === 0 ? (
+        <div className="text-center py-12 text-gray-400 text-lg font-bold">
           No lap times recorded yet
         </div>
+      ) : (
+        <>
+          {/* Grid of Tiles */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {paginatedTimes.map(time => {
+              const imageUrl = carImages[time.car_name]
+              return (
+                <Link
+                  key={time.id}
+                  to={`/times/${time.id}`}
+                  className="group relative overflow-hidden rounded-xl shadow-2xl h-64 cursor-pointer transform transition hover:scale-105 border-4 border-cyan-500"
+                  style={{
+                    backgroundImage: imageUrl
+                      ? `linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%), url('${imageUrl}')`
+                      : 'linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(6, 182, 212) 100%)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                  }}
+                >
+                  {/* Scanline effect overlay */}
+                  <div className="absolute inset-0 opacity-20" style={{backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px)'}}></div>
+                  
+                  {/* Content overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  
+                  <div className="relative h-full flex flex-col justify-between p-6 text-white">
+                    {/* Top: Track and Time */}
+                    <div className="flex flex-col justify-center flex-1">
+                      <h3 className="text-3xl font-black drop-shadow-2xl mb-2">
+                        {formatTime(time.time_ms)}
+                      </h3>
+                      <p className="text-lg font-black text-cyan-300 drop-shadow-lg">
+                        {time.race_name}
+                      </p>
+                    </div>
+
+                    {/* Bottom: Player and Car */}
+                    <div className="mt-auto">
+                      <Link
+                        to={`/players/${time.player_id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-black text-cyan-300 hover:text-cyan-200 underline drop-shadow-lg hover:no-underline transition"
+                      >
+                        {time.player_name}
+                      </Link>
+                      <p className="text-sm text-gray-300 font-bold drop-shadow-lg">
+                        {time.car_name}
+                      </p>
+                      <p className="text-xs text-gray-400 font-bold mt-1">
+                        {formatDate(time.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-8">
+              <button
+                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                disabled={currentPage === 0}
+                className="p-2 rounded-lg border-2 border-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition text-cyan-400 font-black disabled:text-gray-600"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <span className="text-sm text-gray-400 font-bold">
+                Page {currentPage + 1} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
+                disabled={currentPage === totalPages - 1}
+                className="p-2 rounded-lg border-2 border-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition text-cyan-400 font-black disabled:text-gray-600"
+              >
+                <ChevronRight size={24} />
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

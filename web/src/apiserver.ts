@@ -233,6 +233,43 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     })
   },
 
+  // Current active round
+  '/api/current-round': () => {
+    const result = db.query(`
+      SELECT
+        r.id,
+        r.class,
+        r.value,
+        r.race_type,
+        r.year,
+        r.status,
+        r.created_at
+      FROM rounds r
+      WHERE r.status = 'pending' AND r.winner_id IS NULL
+      LIMIT 1
+    `).get()
+
+    if (!result) {
+      return new Response(JSON.stringify({ error: 'No active round' }), { status: 404 })
+    }
+
+    const players = db.query(`
+      SELECT
+        p.id,
+        p.display_name,
+        cc.car_name
+      FROM round_players rp
+      JOIN players p ON rp.player_id = p.id
+      LEFT JOIN car_choices cc ON rp.round_id = cc.round_id AND rp.player_id = cc.player_id
+      WHERE rp.round_id = ?
+      ORDER BY p.display_name ASC
+    `).all(result.id)
+
+    return new Response(JSON.stringify({ ...result, players }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
   // Lap times with optional filtering
   '/api/times': (req) => {
     const url = new URL(req.url)
