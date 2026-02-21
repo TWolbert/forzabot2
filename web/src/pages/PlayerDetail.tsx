@@ -60,9 +60,13 @@ export function PlayerDetail() {
   const [loading, setLoading] = useState(true)
   const [carsPage, setCarsPage] = useState(0)
   const [gamesPage, setGamesPage] = useState(0)
-  const [gamesExpanded, setGamesExpanded] = useState(true)
+  const [gamesExpanded, setGamesExpanded] = useState(false)
   const [selectedMap, setSelectedMap] = useState('')
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
+  const [carImageIndex, setCarImageIndex] = useState<Record<string, number>>({})
+  const [confirmedCars, setConfirmedCars] = useState<Record<string, boolean>>({})
+
+  const getConfirmedKey = (carName: string) => `car-image-confirmed-${carName}`
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000)
@@ -258,11 +262,20 @@ export function PlayerDetail() {
   useEffect(() => {
     const fetchCarImages = async () => {
       const images: Record<string, string | null> = {}
+      const confirmed: Record<string, boolean> = {}
       
       for (const car of paginatedCars) {
         if (!carImages[car.name]) {
           try {
-            const imageUrl = await getCachedCarImage(car.name)
+            const confirmedImage = localStorage.getItem(getConfirmedKey(car.name))
+            if (confirmedImage) {
+              images[car.name] = confirmedImage
+              confirmed[car.name] = true
+              continue
+            }
+
+            const index = carImageIndex[car.name] ?? 0
+            const imageUrl = await getCachedCarImage(car.name, index, { forceRefresh: index !== 0 })
             images[car.name] = imageUrl
           } catch (error) {
             console.error(`Failed to fetch image for ${car.name}:`, error)
@@ -272,12 +285,84 @@ export function PlayerDetail() {
       }
       
       setCarImages(prev => ({ ...prev, ...images }))
+      setConfirmedCars(prev => ({ ...prev, ...confirmed }))
     }
 
     if (paginatedCars.length > 0) {
       fetchCarImages()
     }
-  }, [carsPage, paginatedCars, carImages])
+  }, [carsPage, paginatedCars, carImages, carImageIndex])
+
+  const handleRetryCar = async (carName: string) => {
+    localStorage.removeItem(getConfirmedKey(carName))
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName })
+      })
+    } catch (error) {
+      console.error('Failed to clear confirmed image:', error)
+    }
+
+    setConfirmedCars(prev => ({
+      ...prev,
+      [carName]: false
+    }))
+    setCarImageIndex(prev => ({
+      ...prev,
+      [carName]: Math.floor(Math.random() * 10)
+    }))
+  }
+
+  const handleConfirmCar = async (carName: string) => {
+    const imageUrl = carImages[carName]
+    if (!imageUrl) return
+
+    localStorage.setItem(getConfirmedKey(carName), imageUrl)
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName, imageUrl })
+      })
+    } catch (error) {
+      console.error('Failed to confirm image:', error)
+    }
+
+    setConfirmedCars(prev => ({
+      ...prev,
+      [carName]: true
+    }))
+  }
+
+  const handleManualCar = async (carName: string) => {
+    const input = window.prompt('Paste image URL for this car:')
+    if (!input) return
+
+    const imageUrl = input.trim()
+    if (!imageUrl) return
+
+    localStorage.setItem(getConfirmedKey(carName), imageUrl)
+    try {
+      await fetch('/api/car-image/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carName, imageUrl })
+      })
+    } catch (error) {
+      console.error('Failed to confirm image:', error)
+    }
+
+    setCarImages(prev => ({
+      ...prev,
+      [carName]: imageUrl
+    }))
+    setConfirmedCars(prev => ({
+      ...prev,
+      [carName]: true
+    }))
+  }
 
   if (loading) {
     return (
@@ -476,7 +561,7 @@ export function PlayerDetail() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-6">
             {paginatedCars.map(car => (
               <div key={car.name} className="flex flex-col items-center">
-                <div className="w-full aspect-video bg-gray-800 rounded-lg overflow-hidden mb-2 flex items-center justify-center border-2 border-purple-500">
+                <div className="w-full aspect-video bg-gray-800 rounded-lg overflow-hidden mb-2 flex items-center justify-center border-2 border-purple-500 relative group">
                   {carImages[car.name] ? (
                     <img
                       src={carImages[car.name]}
@@ -486,6 +571,36 @@ export function PlayerDetail() {
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-700">
                       <span className="text-gray-500 font-bold text-xs text-center px-2">No image</span>
+                    </div>
+                  )}
+                  {!confirmedCars[car.name] && (
+                    <div className="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                      <button
+                        type="button"
+                        onClick={() => handleRetryCar(car.name)}
+                        className="bg-purple-500/90 hover:bg-purple-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                      >
+                        Retry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmCar(car.name)}
+                        className="bg-green-500/90 hover:bg-green-400 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleManualCar(car.name)}
+                        className="bg-gray-900/90 hover:bg-gray-800 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg"
+                      >
+                        Set URL
+                      </button>
+                    </div>
+                  )}
+                  {confirmedCars[car.name] && (
+                    <div className="absolute top-2 left-2 flex items-center justify-center bg-green-500/90 text-white text-xs font-black w-7 h-7 rounded-full shadow-lg">
+                      <Check size={14} />
                     </div>
                   )}
                 </div>

@@ -45,7 +45,12 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     const randomIndex = Math.floor(Math.random() * validCars.length);
     const selectedCar = validCars[randomIndex];
 
-    // Save car choice to database
+    // Save car choice to database (override previous selection if any)
+    const clearStmt = db.prepare(
+      "DELETE FROM car_choices WHERE round_id = ? AND player_id = ?"
+    );
+    clearStmt.run(round.id, interaction.user.id);
+
     const carChoiceStmt = db.prepare(
       "INSERT INTO car_choices (round_id, player_id, car_name, chosen_at) VALUES (?, ?, ?, ?)"
     );
@@ -164,7 +169,9 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       }
 
       // Get the most recent round ID
-      const recentRound = db.query("SELECT id FROM rounds ORDER BY created_at DESC LIMIT 1").get() as { id: string } | null;
+      const recentRound = db.query(
+        "SELECT id FROM rounds WHERE status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1"
+      ).get() as { id: string } | null;
       
       if (!recentRound) {
         await i.update({ content: "No active round found. Please start a round first.", embeds: [], components: [] });
@@ -172,7 +179,12 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
         return;
       }
 
-      // Save car choice to database
+      // Save car choice to database (override previous selection if any)
+      const clearStmt = db.prepare(
+        "DELETE FROM car_choices WHERE round_id = ? AND player_id = ?"
+      );
+      clearStmt.run(recentRound.id, i.user.id);
+
       const carChoiceStmt = db.prepare(
         "INSERT INTO car_choices (round_id, player_id, car_name, chosen_at) VALUES (?, ?, ?, ?)"
       );
