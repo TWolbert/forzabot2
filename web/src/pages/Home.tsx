@@ -18,6 +18,7 @@ export function Home() {
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
   const [hasActiveRound, setHasActiveRound] = useState(false)
   const [activeRoundImage, setActiveRoundImage] = useState<string | null>(null)
+  const [activeRoundPlayers, setActiveRoundPlayers] = useState<Array<{ id: string; avatar_url?: string }>>([])
 
   useEffect(() => {
     const fetchCarImages = async () => {
@@ -63,10 +64,12 @@ export function Home() {
         if (!response.ok) {
           setHasActiveRound(false)
           setActiveRoundImage(null)
+          setActiveRoundPlayers([])
           return
         }
 
         const data = await response.json()
+        const players = (data?.players ?? []) as Array<{ id: string; avatar_url?: string; car_name?: string }>
         const chosenCars = (data?.players ?? [])
           .map((player: { car_name?: string }) => player.car_name)
           .filter((name: string | undefined): name is string => Boolean(name))
@@ -78,11 +81,13 @@ export function Home() {
         if (!mounted) return
         setHasActiveRound(true)
         setActiveRoundImage(imageUrl)
+        setActiveRoundPlayers(players)
       } catch (error) {
         if (mounted) {
           console.error('Failed to fetch active round:', error)
           setHasActiveRound(false)
           setActiveRoundImage(null)
+          setActiveRoundPlayers([])
         }
       }
     }
@@ -131,7 +136,7 @@ export function Home() {
             {hasActiveRound && (
               <Link
                 to="/active-round"
-                className="md:col-span-2 group relative overflow-hidden rounded-xl shadow-2xl h-48 cursor-pointer transform transition hover:scale-105 border-4 border-orange-500"
+                className="md:col-span-2 group relative overflow-hidden rounded-xl shadow-2xl h-64 cursor-pointer transform transition hover:scale-105 border-4 border-orange-500"
                 style={{
                   backgroundImage: activeRoundImage
                     ? `linear-gradient(135deg, rgba(249, 115, 22, 0.85) 0%, rgba(239, 68, 68, 0.75) 100%), url('${activeRoundImage}')`
@@ -141,6 +146,19 @@ export function Home() {
                 }}
               >
                 <div className="absolute inset-0 opacity-30" style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.15) 10px, rgba(0,0,0,0.15) 20px)'}}></div>
+                <div className="absolute top-3 left-3 flex items-center gap-1">
+                  {activeRoundPlayers
+                    .filter(player => player.avatar_url)
+                    .slice(0, 6)
+                    .map(player => (
+                      <img
+                        key={player.id}
+                        src={player.avatar_url}
+                        alt=""
+                        className="w-8 h-8 rounded-full border-2 border-white/80 shadow-lg object-cover"
+                      />
+                    ))}
+                </div>
                 <div className="absolute top-3 right-3 flex items-center gap-2 text-white font-black text-xs bg-red-600/90 px-3 py-1 rounded-full shadow-lg">
                   <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
                   LIVE
