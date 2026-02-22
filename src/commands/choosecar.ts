@@ -43,7 +43,8 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     }
 
     const randomIndex = Math.floor(Math.random() * validCars.length);
-    const selectedCar = validCars[randomIndex];
+    const selectedCarName = validCars[randomIndex]!;
+    const selectedCarData = allCars.find(c => c.name === selectedCarName);
 
     // Save car choice to database (override previous selection if any)
     const clearStmt = db.prepare(
@@ -54,14 +55,21 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     const carChoiceStmt = db.prepare(
       "INSERT INTO car_choices (round_id, player_id, car_name, chosen_at) VALUES (?, ?, ?, ?)"
     );
-    carChoiceStmt.run(round.id, interaction.user.id, selectedCar, Date.now());
+    carChoiceStmt.run(round.id, interaction.user.id, selectedCarName, Date.now());
+
+    const remainingBudget = maxValue! - (selectedCarData?.value || 0);
 
     const finalEmbed = new EmbedBuilder()
       .setTitle("🎲 Random Car Selected")
-      .setDescription(`You got: **${selectedCar}**\nRound ID: ${round.id}`)
-      .setColor(0x9b59b6);
+      .setDescription(`You got: **${selectedCarName}**\nRound ID: ${round.id}`)
+      .setColor(0x9b59b6)
+      .addFields([
+        { name: "Performance Index", value: selectedCarData?.pi || "N/A", inline: true },
+        { name: "Car Price", value: `$${(selectedCarData?.value || 0).toLocaleString("en-US")}`, inline: true },
+        { name: "Remaining Upgrades", value: `$${remainingBudget.toLocaleString("en-US")}`, inline: true },
+      ]);
 
-    const imageUrl = await getTopCarImage(selectedCar);
+    const imageUrl = await getTopCarImage(selectedCarName);
     if (imageUrl) {
       finalEmbed.setImage(imageUrl);
     }
@@ -84,23 +92,35 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     return;
   }
 
+  // Load car data for details
+  const allCarData = await loadCarData();
+  const carDataMap = new Map(allCarData.map(car => [car.name, car]));
+
   let currentIndex = 0;
 
   const formatCurrency = (value: number): string =>
     `$${value.toLocaleString("en-US")}`;
 
   const createCarEmbed = async (index: number) => {
-    const car = results[index];
-    if (!car) return new EmbedBuilder().setTitle("Error").setDescription("Car not found");
+    const carName = results[index];
+    if (!carName) return new EmbedBuilder().setTitle("Error").setDescription("Car not found");
     
-    const imageUrl = await getTopCarImage(car);
+    const carData = carDataMap.get(carName);
+    const imageUrl = await getTopCarImage(carName);
+    const remainingBudget = maxValue! - (carData?.value || 0);
+    
     const embed = new EmbedBuilder()
-      .setTitle(car)
+      .setTitle(carName)
       .setDescription(
         maxValue
           ? `Car ${index + 1} of ${results.length} (Max: ${formatCurrency(maxValue)})`
           : `Car ${index + 1} of ${results.length}`
-      );
+      )
+      .addFields([
+        { name: "Performance Index", value: carData?.pi || "N/A", inline: true },
+        { name: "Car Price", value: `${formatCurrency(carData?.value || 0)}`, inline: true },
+        { name: "Remaining Upgrades", value: `${formatCurrency(remainingBudget)}`, inline: true },
+      ]);
     
     if (imageUrl) {
       embed.setImage(imageUrl);
@@ -170,8 +190,8 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
 
       // Get the most recent round ID
       const recentRound = db.query(
-        "SELECT id FROM rounds WHERE status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1"
-      ).get() as { id: string } | null;
+        "SELECT id, value FROM rounds WHERE status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1"
+      ).get() as { id: string; value: number } | null;
       
       if (!recentRound) {
         await i.update({ content: "No active round found. Please start a round first.", embeds: [], components: [] });
@@ -190,10 +210,18 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       );
       carChoiceStmt.run(recentRound.id, i.user.id, selectedCar, Date.now());
 
+      const carData = carDataMap.get(selectedCar);
+      const remainingBudget = recentRound.value - (carData?.value || 0);
+
       const finalEmbed = new EmbedBuilder()
         .setTitle("Car Selected")
         .setDescription(`You selected: **${selectedCar}**\nRound ID: ${recentRound.id}`)
-        .setColor(0x00ff00);
+        .setColor(0x00ff00)
+        .addFields([
+          { name: "Performance Index", value: carData?.pi || "N/A", inline: true },
+          { name: "Car Price", value: `${formatCurrency(carData?.value || 0)}`, inline: true },
+          { name: "Remaining Upgrades", value: `${formatCurrency(remainingBudget)}`, inline: true },
+        ]);
 
       const imageUrl = await getTopCarImage(selectedCar);
       if (imageUrl) {

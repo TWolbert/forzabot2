@@ -6,6 +6,7 @@ import { db } from "./database";
 export interface CarData {
   name: string;
   value: number;
+  pi?: string;
 }
 
 let cachedCarNames: string[] | null = null;
@@ -104,6 +105,7 @@ export const loadCarData = async (): Promise<CarData[]> => {
   const headers = parseCsvLine(firstLine);
   const vehicleIndex = headers.indexOf("Vehicle");
   const valueIndex = headers.indexOf("Value");
+  const piIndex = headers.indexOf("PI");
 
   if (vehicleIndex === -1 || valueIndex === -1) {
     cachedCarData = [];
@@ -117,7 +119,8 @@ export const loadCarData = async (): Promise<CarData[]> => {
       const name = fields[vehicleIndex];
       const valueStr = fields[valueIndex];
       const value = valueStr ? parseInt(valueStr.replace(/[^0-9]/g, ""), 10) : 0;
-      return { name, value };
+      const pi = piIndex !== -1 ? fields[piIndex]?.trim() : undefined;
+      return { name, value, pi };
     })
     .filter((entry): entry is CarData => Boolean(entry.name) && !isNaN(entry.value));
 
