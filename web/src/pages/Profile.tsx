@@ -19,6 +19,7 @@ export function Profile() {
   const [usernameSaving, setUsernameSaving] = useState(false)
   const [discordUsername, setDiscordUsername] = useState('')
   const [discordUserId, setDiscordUserId] = useState('')
+  const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
   const [inputValue, setInputValue] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -55,6 +56,9 @@ export function Profile() {
         if (link?.discord_user_id) {
           setDiscordUserId(link.discord_user_id)
         }
+        if (link?.avatar_url) {
+          setDiscordAvatarUrl(link.avatar_url)
+        }
       } catch (err) {
         console.error('Failed to fetch Discord link:', err)
       } finally {
@@ -81,6 +85,7 @@ export function Profile() {
       const result = await linkDiscord(inputValue)
       setDiscordUsername(result.discord_username || '')
       setDiscordUserId(result.discord_user_id || '')
+      setDiscordAvatarUrl(result.avatar_url || '')
       setInputValue('')
       setMessage(`Successfully linked Discord account: ${result.discord_username}`)
       setTimeout(() => setMessage(null), 3000)
@@ -99,6 +104,7 @@ export function Profile() {
       await unlinkDiscord()
       setDiscordUsername('')
       setDiscordUserId('')
+      setDiscordAvatarUrl('')
       setMessage('Successfully unlinked Discord account')
       setTimeout(() => setMessage(null), 3000)
     } catch (err) {
@@ -254,12 +260,25 @@ export function Profile() {
               </div>
             ) : discordUsername ? (
               <div>
-                <p className="text-gray-300 font-bold mb-2">
-                  Linked Discord: <span className="text-orange-300 font-black">{discordUsername}</span>
-                </p>
-                <p className="text-gray-400 text-xs mb-4">
-                  User ID: {discordUserId}
-                </p>
+                <div className="flex items-center gap-3 mb-3">
+                  {discordAvatarUrl ? (
+                    <img
+                      src={discordAvatarUrl}
+                      alt={`${discordUsername} avatar`}
+                      className="w-14 h-14 rounded-full border-2 border-orange-500/60 object-cover"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full border-2 border-orange-500/60 bg-gray-800 flex items-center justify-center text-orange-300 font-black text-lg">
+                      {(discordUsername || '?').slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-gray-300 font-bold">
+                      Linked Discord: <span className="text-orange-300 font-black">{discordUsername}</span>
+                    </p>
+                    <p className="text-gray-400 text-xs">User ID: {discordUserId}</p>
+                  </div>
+                </div>
                 <p className="text-gray-400 text-sm mb-4">
                   Your Discord account is linked. You'll receive placement-based point rewards when you finish races!
                 </p>

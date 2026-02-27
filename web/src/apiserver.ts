@@ -512,8 +512,16 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
 
       const linked = db.query('SELECT discord_username, discord_user_id FROM web_users_discord WHERE web_user_id = ?')
         .get(user.id) as { discord_username: string; discord_user_id: string } | null
+      const avatar = linked?.discord_user_id
+        ? db.query('SELECT avatar_url FROM discord_avatars WHERE player_id = ?').get(linked.discord_user_id) as { avatar_url: string } | null
+        : null
 
-      return new Response(JSON.stringify({ ok: true, discord_username: linked?.discord_username, discord_user_id: linked?.discord_user_id }), {
+      return new Response(JSON.stringify({
+        ok: true,
+        discord_username: linked?.discord_username,
+        discord_user_id: linked?.discord_user_id,
+        avatar_url: avatar?.avatar_url ?? null
+      }), {
         headers: { 'Content-Type': 'application/json' }
       })
     } catch (error) {
@@ -530,8 +538,15 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
 
     const link = db.query('SELECT discord_username, discord_user_id FROM web_users_discord WHERE web_user_id = ?')
       .get(user.id) as { discord_username: string; discord_user_id: string } | null
+    const avatar = link?.discord_user_id
+      ? db.query('SELECT avatar_url FROM discord_avatars WHERE player_id = ?').get(link.discord_user_id) as { avatar_url: string } | null
+      : null
 
-    return new Response(JSON.stringify({ discord_username: link?.discord_username || null, discord_user_id: link?.discord_user_id || null }), {
+    return new Response(JSON.stringify({
+      discord_username: link?.discord_username || null,
+      discord_user_id: link?.discord_user_id || null,
+      avatar_url: avatar?.avatar_url || null
+    }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },

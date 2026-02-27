@@ -85,6 +85,7 @@ export async function linkDiscord(discordUserId: string) {
     ok: boolean
     discord_username: string | null
     discord_user_id: string | null
+    avatar_url: string | null
   }>
 }
 
@@ -92,6 +93,7 @@ export async function getDiscordLink() {
   return apiRequest('/auth/discord-link', 'GET', undefined, true) as Promise<{
     discord_username: string | null
     discord_user_id: string | null
+    avatar_url: string | null
   }>
 }
 
