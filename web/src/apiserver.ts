@@ -467,25 +467,36 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     }
 
     const body = await req.json() as { discord_username?: string }
-    const discordUsername = (body.discord_username ?? '').trim().toLowerCase()
+    const discordUsername = (body.discord_username ?? '').trim()
 
     if (!discordUsername) {
       return new Response(JSON.stringify({ error: 'Missing discord_username' }), { status: 400 })
     }
 
+    // Try to find the Discord user ID by searching the database for players
+    // who match the given username (case-insensitive)
+    const discordUser = db.query(`
+      SELECT id FROM players WHERE LOWER(display_name) = LOWER(?)
+      LIMIT 1
+    `).get(discordUsername) as { id: string } | null
+
+    if (!discordUser) {
+      return new Response(JSON.stringify({ error: 'Discord user not found. Make sure they have participated in a race.' }), { status: 404 })
+    }
+
     const now = Date.now()
     try {
       db.prepare(`
-        INSERT INTO web_users_discord (web_user_id, discord_username, linked_at)
-        VALUES (?, ?, ?)
+        INSERT INTO web_users_discord (web_user_id, discord_username, discord_user_id, linked_at)
+        VALUES (?, ?, ?, ?)
         ON CONFLICT(web_user_id)
-        DO UPDATE SET discord_username = excluded.discord_username, linked_at = excluded.linked_at
-      `).run(user.id, discordUsername, now)
+        DO UPDATE SET discord_username = excluded.discord_username, discord_user_id = excluded.discord_user_id, linked_at = excluded.linked_at
+      `).run(user.id, discordUsername, discordUser.id, now)
 
-      const linked = db.query('SELECT discord_username FROM web_users_discord WHERE web_user_id = ?')
-        .get(user.id) as { discord_username: string } | null
+      const linked = db.query('SELECT discord_username, discord_user_id FROM web_users_discord WHERE web_user_id = ?')
+        .get(user.id) as { discord_username: string; discord_user_id: string } | null
 
-      return new Response(JSON.stringify({ ok: true, discord_username: linked?.discord_username }), {
+      return new Response(JSON.stringify({ ok: true, discord_username: linked?.discord_username, discord_user_id: linked?.discord_user_id }), {
         headers: { 'Content-Type': 'application/json' }
       })
     } catch (error) {
@@ -500,10 +511,10 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
     }
 
-    const link = db.query('SELECT discord_username FROM web_users_discord WHERE web_user_id = ?')
-      .get(user.id) as { discord_username: string } | null
+    const link = db.query('SELECT discord_username, discord_user_id FROM web_users_discord WHERE web_user_id = ?')
+      .get(user.id) as { discord_username: string; discord_user_id: string } | null
 
-    return new Response(JSON.stringify({ discord_username: link?.discord_username || null }), {
+    return new Response(JSON.stringify({ discord_username: link?.discord_username || null, discord_user_id: link?.discord_user_id || null }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },

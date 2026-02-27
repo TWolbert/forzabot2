@@ -215,11 +215,13 @@ export function initializeDatabase() {
     // Table already exists, ignore
   }
 
-  // Migrate bets table to add UNIQUE constraint if missing
+  // Migrate bets table to add UNIQUE constraint if missing or wrong
   try {
     const betsTable = db.query("SELECT sql FROM sqlite_master WHERE type='table' AND name='bets'").get() as { sql: string } | null
-    if (betsTable && !betsTable.sql.includes('UNIQUE')) {
-      // Table exists but doesn't have the unique constraint, recreate it
+    // Check if we need to migrate: either no unique constraint, or it doesn't mention predicted_player_id
+    if (betsTable && (!betsTable.sql.includes('UNIQUE') || !betsTable.sql.includes('predicted_player_id'))) {
+      // Table exists but doesn't have the correct unique constraint, recreate it
+      console.log('Migrating bets table to new constraint...')
       db.exec('PRAGMA foreign_keys=OFF')
       db.exec('ALTER TABLE bets RENAME TO bets_old')
       db.exec(`
@@ -242,7 +244,7 @@ export function initializeDatabase() {
       db.exec('INSERT INTO bets SELECT id, round_id, user_id, predicted_player_id, points_wagered, status, payout, created_at, settled_at FROM bets_old')
       db.exec('DROP TABLE bets_old')
       db.exec('PRAGMA foreign_keys=ON')
-      console.log('✓ Migrated bets table with UNIQUE constraint')
+      console.log('✓ Migrated bets table with correct UNIQUE constraint')
     }
   } catch (e) {
     console.error('Migration error for bets table:', e)

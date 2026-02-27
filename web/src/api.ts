@@ -90,6 +90,7 @@ export async function linkDiscord(discordUsername: string) {
 export async function getDiscordLink() {
   return apiRequest('/auth/discord-link', 'GET', undefined, true) as Promise<{
     discord_username: string | null
+    discord_user_id: string | null
   }>
 }
 
