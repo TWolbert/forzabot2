@@ -167,6 +167,9 @@ function awardPlacementPoints(roundId: string) {
 
     if (winnerUser) {
       awardStmt.run(50, winnerUser.web_user_id)
+      console.log(`✓ Awarded 50 points to web user ${winnerUser.web_user_id} for 1st place (Discord ID: ${winnerPlayerId})`)
+    } else {
+      console.log(`⚠ No linked web account found for 1st place winner (Discord ID: ${winnerPlayerId}) - no points awarded`)
     }
   }
 
@@ -179,6 +182,9 @@ function awardPlacementPoints(roundId: string) {
 
       if (secondUser) {
         awardStmt.run(25, secondUser.web_user_id)
+        console.log(`✓ Awarded 25 points to web user ${secondUser.web_user_id} for 2nd place (Discord ID: ${secondPlayerId})`)
+      } else {
+        console.log(`⚠ No linked web account found for 2nd place (Discord ID: ${secondPlayerId}) - no points awarded`)
       }
     }
   }
@@ -466,19 +472,18 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
     }
 
-    const body = await req.json() as { discord_username?: string }
-    const discordUsername = (body.discord_username ?? '').trim()
+    const body = await req.json() as { discord_user_id?: string }
+    const discordUserId = (body.discord_user_id ?? '').trim()
 
-    if (!discordUsername) {
-      return new Response(JSON.stringify({ error: 'Missing discord_username' }), { status: 400 })
+    if (!discordUserId) {
+      return new Response(JSON.stringify({ error: 'Missing discord_user_id' }), { status: 400 })
     }
 
-    // Try to find the Discord user ID by searching the database for players
-    // who match the given username (case-insensitive)
+    // Verify the Discord user exists in players table
     const discordUser = db.query(`
-      SELECT id FROM players WHERE LOWER(display_name) = LOWER(?)
+      SELECT id, display_name FROM players WHERE id = ?
       LIMIT 1
-    `).get(discordUsername) as { id: string } | null
+    `).get(discordUserId) as { id: string; display_name: string } | null
 
     if (!discordUser) {
       return new Response(JSON.stringify({ error: 'Discord user not found. Make sure they have participated in a race.' }), { status: 404 })
@@ -491,7 +496,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         VALUES (?, ?, ?, ?)
         ON CONFLICT(web_user_id)
         DO UPDATE SET discord_username = excluded.discord_username, discord_user_id = excluded.discord_user_id, linked_at = excluded.linked_at
-      `).run(user.id, discordUsername, discordUser.id, now)
+      `).run(user.id, discordUser.display_name, discordUser.id, now)
 
       const linked = db.query('SELECT discord_username, discord_user_id FROM web_users_discord WHERE web_user_id = ?')
         .get(user.id) as { discord_username: string; discord_user_id: string } | null
@@ -517,6 +522,27 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     return new Response(JSON.stringify({ discord_username: link?.discord_username || null, discord_user_id: link?.discord_user_id || null }), {
       headers: { 'Content-Type': 'application/json' }
     })
+  },
+
+  '/api/auth/unlink-discord': (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const user = getAuthenticatedUser(req)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    try {
+      db.prepare('DELETE FROM web_users_discord WHERE web_user_id = ?').run(user.id)
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Error unlinking discord:', error)
+      return new Response(JSON.stringify({ error: 'Failed to unlink discord account' }), { status: 500 })
+    }
   },
 
   '/api/auth/update-username': async (req) => {

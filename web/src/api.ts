@@ -80,10 +80,11 @@ export async function logout() {
   }
 }
 
-export async function linkDiscord(discordUsername: string) {
-  return apiRequest('/auth/link-discord', 'POST', { discord_username: discordUsername }, true) as Promise<{
+export async function linkDiscord(discordUserId: string) {
+  return apiRequest('/auth/link-discord', 'POST', { discord_user_id: discordUserId }, true) as Promise<{
     ok: boolean
     discord_username: string | null
+    discord_user_id: string | null
   }>
 }
 
@@ -91,6 +92,12 @@ export async function getDiscordLink() {
   return apiRequest('/auth/discord-link', 'GET', undefined, true) as Promise<{
     discord_username: string | null
     discord_user_id: string | null
+  }>
+}
+
+export async function unlinkDiscord() {
+  return apiRequest('/auth/unlink-discord', 'POST', {}, true) as Promise<{
+    ok: boolean
   }>
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronLeft, User, Link as LinkIcon, Loader, Edit2, Check, X } from 'lucide-react'
-import { getMe, readAuthToken, linkDiscord, getDiscordLink, updateUsername } from '../api'
+import { ChevronLeft, User, Link as LinkIcon, Loader, Edit2, Check, X, Unlink } from 'lucide-react'
+import { getMe, readAuthToken, linkDiscord, getDiscordLink, updateUsername, unlinkDiscord } from '../api'
 
 interface AuthUser {
   id: string
@@ -18,10 +18,12 @@ export function Profile() {
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [usernameSaving, setUsernameSaving] = useState(false)
   const [discordUsername, setDiscordUsername] = useState('')
+  const [discordUserId, setDiscordUserId] = useState('')
   const [inputValue, setInputValue] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [linking, setLinking] = useState(false)
+  const [unlinking, setUnlinking] = useState(false)
   const [loadingDiscordLink, setLoadingDiscordLink] = useState(true)
 
   useEffect(() => {
@@ -50,6 +52,9 @@ export function Profile() {
         if (link?.discord_username) {
           setDiscordUsername(link.discord_username)
         }
+        if (link?.discord_user_id) {
+          setDiscordUserId(link.discord_user_id)
+        }
       } catch (err) {
         console.error('Failed to fetch Discord link:', err)
       } finally {
@@ -67,21 +72,39 @@ export function Profile() {
     setMessage(null)
 
     if (!inputValue.trim()) {
-      setError('Please enter your Discord username')
+      setError('Please enter your Discord user ID')
       return
     }
 
     setLinking(true)
     try {
-      await linkDiscord(inputValue)
-      setDiscordUsername(inputValue)
+      const result = await linkDiscord(inputValue)
+      setDiscordUsername(result.discord_username || '')
+      setDiscordUserId(result.discord_user_id || '')
       setInputValue('')
-      setMessage(`Successfully linked Discord account: ${inputValue}`)
+      setMessage(`Successfully linked Discord account: ${result.discord_username}`)
       setTimeout(() => setMessage(null), 3000)
     } catch (err) {
       setError((err as Error).message || 'Failed to link Discord account')
     } finally {
       setLinking(false)
+    }
+  }
+
+  const handleUnlinkDiscord = async () => {
+    setError(null)
+    setMessage(null)
+    setUnlinking(true)
+    try {
+      await unlinkDiscord()
+      setDiscordUsername('')
+      setDiscordUserId('')
+      setMessage('Successfully unlinked Discord account')
+      setTimeout(() => setMessage(null), 3000)
+    } catch (err) {
+      setError((err as Error).message || 'Failed to unlink Discord account')
+    } finally {
+      setUnlinking(false)
     }
   }
 
@@ -231,12 +254,24 @@ export function Profile() {
               </div>
             ) : discordUsername ? (
               <div>
-                <p className="text-gray-300 font-bold mb-4">
+                <p className="text-gray-300 font-bold mb-2">
                   Linked Discord: <span className="text-orange-300 font-black">{discordUsername}</span>
+                </p>
+                <p className="text-gray-400 text-xs mb-4">
+                  User ID: {discordUserId}
                 </p>
                 <p className="text-gray-400 text-sm mb-4">
                   Your Discord account is linked. You'll receive placement-based point rewards when you finish races!
                 </p>
+                <button
+                  type="button"
+                  onClick={handleUnlinkDiscord}
+                  disabled={unlinking}
+                  className="bg-red-500 hover:bg-red-400 disabled:opacity-60 text-white font-black rounded-lg px-4 py-2 transition flex items-center gap-2"
+                >
+                  <Unlink size={18} />
+                  {unlinking ? 'Unlinking...' : 'Unlink Discord Account'}
+                </button>
               </div>
             ) : (
               <div>
@@ -253,12 +288,15 @@ export function Profile() {
             {!discordUsername && (
               <form onSubmit={handleLinkDiscord} className="space-y-3">
                 <div>
-                  <label className="block text-gray-300 font-bold mb-2">Enter your Discord username:</label>
+                  <label className="block text-gray-300 font-bold mb-2">Enter your Discord User ID:</label>
+                  <p className="text-gray-400 text-xs mb-2">
+                    Right-click your profile in Discord → Copy User ID. Enable Developer Mode in Settings if needed.
+                  </p>
                   <input
                     type="text"
                     value={inputValue}
                     onChange={e => setInputValue(e.target.value)}
-                    placeholder="username#0000"
+                    placeholder="123456789012345678"
                     className="w-full bg-gray-800 border border-orange-500/50 rounded-lg px-4 py-2 text-white font-bold placeholder-gray-500 focus:outline-none focus:border-orange-400"
                     disabled={linking}
                   />
