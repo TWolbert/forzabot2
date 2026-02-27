@@ -1,34 +1,109 @@
 const API_BASE = '/api'
 
+const AUTH_TOKEN_KEY = 'forzabot-auth-token'
+
+type HttpMethod = 'GET' | 'POST'
+
+function getAuthToken(): string | null {
+  return localStorage.getItem(AUTH_TOKEN_KEY)
+}
+
+function setAuthToken(token: string | null) {
+  if (!token) {
+    localStorage.removeItem(AUTH_TOKEN_KEY)
+    return
+  }
+  localStorage.setItem(AUTH_TOKEN_KEY, token)
+}
+
+async function apiRequest(path: string, method: HttpMethod = 'GET', body?: unknown, withAuth = false) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  }
+
+  if (withAuth) {
+    const token = getAuthToken()
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  })
+
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((json as { error?: string })?.error ?? 'Request failed')
+  }
+
+  return json
+}
+
+export function readAuthToken() {
+  return getAuthToken()
+}
+
+export async function register(username: string, password: string) {
+  const data = await apiRequest('/auth/register', 'POST', { username, password }) as {
+    token: string
+    user: { id: string; username: string; points: number }
+  }
+  setAuthToken(data.token)
+  return data
+}
+
+export async function login(username: string, password: string) {
+  const data = await apiRequest('/auth/login', 'POST', { username, password }) as {
+    token: string
+    user: { id: string; username: string; points: number }
+  }
+  setAuthToken(data.token)
+  return data
+}
+
+export async function getMe() {
+  return apiRequest('/auth/me', 'GET', undefined, true) as Promise<{
+    user: { id: string; username: string; points: number }
+  }>
+}
+
+export async function logout() {
+  try {
+    await apiRequest('/auth/logout', 'POST', {}, true)
+  } finally {
+    setAuthToken(null)
+  }
+}
+
+export async function placeBet(roundId: string, predictedPlayerId: string, points: number) {
+  return apiRequest('/bets/place', 'POST', { roundId, predictedPlayerId, points }, true) as Promise<{
+    user: { id: string; username: string; points: number }
+    bet: { id: number; round_id: string; predicted_player_id: string; points_wagered: number; status: string; payout: number }
+  }>
+}
+
 export async function getLeaderboard() {
-  const res = await fetch(`${API_BASE}/leaderboard`)
-  if (!res.ok) throw new Error('Failed to fetch leaderboard')
-  return res.json()
+  return apiRequest('/leaderboard')
 }
 
 export async function getPlayerStats(userId: string) {
-  const res = await fetch(`${API_BASE}/player/${userId}`)
-  if (!res.ok) throw new Error('Failed to fetch player stats')
-  return res.json()
+  return apiRequest(`/player/${userId}`)
 }
 
 export async function getPastGames() {
-  const res = await fetch(`${API_BASE}/games`)
-  if (!res.ok) throw new Error('Failed to fetch games')
-  return res.json()
+  return apiRequest('/games')
 }
 
 export async function getTimes(race?: string, car?: string) {
   const params = new URLSearchParams()
   if (race) params.append('race', race)
   if (car) params.append('car', car)
-  const res = await fetch(`${API_BASE}/times?${params}`)
-  if (!res.ok) throw new Error('Failed to fetch times')
-  return res.json()
+  return apiRequest(`/times?${params}`)
 }
 
 export async function getRaces() {
-  const res = await fetch(`${API_BASE}/races`)
-  if (!res.ok) throw new Error('Failed to fetch races')
-  return res.json()
+  return apiRequest('/races')
 }

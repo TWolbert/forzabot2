@@ -2,10 +2,18 @@ import { Link, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { Home, Trophy, Gamepad2, Clock, Zap } from 'lucide-react'
 import logo from '../5a59366f-e744-498c-9142-270c4f2069d1.png'
+import { getMe, logout, readAuthToken } from '../api'
+
+interface AuthUser {
+  id: string
+  username: string
+  points: number
+}
 
 export function Navigation() {
   const location = useLocation()
   const [hasActiveRound, setHasActiveRound] = useState(false)
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -24,6 +32,27 @@ export function Navigation() {
     }
 
     checkActiveRound()
+
+    const fetchAuth = async () => {
+      const token = readAuthToken()
+      if (!token) {
+        setAuthUser(null)
+        return
+      }
+
+      try {
+        const result = await getMe()
+        if (mounted) {
+          setAuthUser(result.user)
+        }
+      } catch {
+        if (mounted) {
+          setAuthUser(null)
+        }
+      }
+    }
+
+    fetchAuth()
     // Check every 5 seconds for active round status
     const interval = setInterval(checkActiveRound, 5000)
     
@@ -38,6 +67,11 @@ export function Navigation() {
     return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
+  const handleLogout = async () => {
+    await logout()
+    setAuthUser(null)
+  }
+
   return (
     <nav className="bg-gradient-to-r from-red-700 via-orange-600 to-yellow-600 text-white shadow-2xl border-b-4 border-orange-400">
       <div className="max-w-7xl mx-auto px-4 py-3">
@@ -47,7 +81,7 @@ export function Navigation() {
             <span className="text-2xl font-black hidden sm:inline">FORZABOT</span>
           </Link>
           
-          <div className="flex gap-1">
+          <div className="flex gap-1 items-center">
             {hasActiveRound && (
               <Link
                 to="/active-round"
@@ -111,6 +145,34 @@ export function Navigation() {
               <Clock size={18} />
               TIMES
             </Link>
+
+            {authUser ? (
+              <>
+                <div className="px-3 py-2 bg-black/30 border border-orange-300/60 rounded text-xs font-black">
+                  {authUser.username} • {authUser.points} pts
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="px-3 py-2 font-bold hover:bg-orange-500 hover:shadow-lg transition"
+                  style={{clipPath: 'polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px)'}}
+                >
+                  SIGN OUT
+                </button>
+              </>
+            ) : (
+              <Link
+                to="/signin"
+                className={`flex items-center gap-2 px-4 py-2 font-bold transition transform hover:scale-110 ${
+                  isActive('/signin')
+                    ? 'bg-white text-purple-700 shadow-lg'
+                    : 'hover:bg-orange-500 hover:shadow-lg'
+                }`}
+                style={{clipPath: 'polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px)'}}
+              >
+                SIGN IN
+              </Link>
+            )}
           </div>
         </div>
       </div>

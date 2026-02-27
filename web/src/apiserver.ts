@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite'
 import { mkdir, unlink } from 'node:fs/promises'
 import { join } from 'path'
+import { randomUUID } from 'node:crypto'
 
 // Initialize database connection
 // Resolve to repo root so the API writes to the shared DB
@@ -15,6 +16,130 @@ try {
 } catch (error) {
   console.error(`✗ Failed to connect to database: ${error}`)
   process.exit(1)
+}
+
+function initializeApiDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS web_users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      points INTEGER NOT NULL DEFAULT 100,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      token TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES web_users (id)
+    );
+    CREATE TABLE IF NOT EXISTS bets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      round_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      predicted_player_id TEXT NOT NULL,
+      points_wagered INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      payout INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      settled_at INTEGER,
+      UNIQUE (round_id, user_id),
+      FOREIGN KEY (round_id) REFERENCES rounds (id),
+      FOREIGN KEY (user_id) REFERENCES web_users (id),
+      FOREIGN KEY (predicted_player_id) REFERENCES players (id)
+    );
+  `)
+
+  try {
+    db.exec(`ALTER TABLE players ADD COLUMN points INTEGER NOT NULL DEFAULT 100`)
+  } catch {
+    // ignore
+  }
+
+  try {
+    db.exec(`UPDATE players SET points = 100 WHERE points IS NULL`)
+  } catch {
+    // ignore
+  }
+}
+
+initializeApiDatabase()
+
+type AuthUser = {
+  id: string
+  username: string
+  points: number
+}
+
+function getBearerToken(req: Request): string | null {
+  const authHeader = req.headers.get('authorization')
+  if (!authHeader) return null
+  const [scheme, token] = authHeader.split(' ')
+  if (!scheme || !token) return null
+  if (scheme.toLowerCase() !== 'bearer') return null
+  return token.trim() || null
+}
+
+function getAuthenticatedUser(req: Request): AuthUser | null {
+  const token = getBearerToken(req)
+  if (!token) return null
+
+  const now = Date.now()
+  const row = db.query(`
+    SELECT wu.id, wu.username, wu.points, s.expires_at
+    FROM auth_sessions s
+    JOIN web_users wu ON wu.id = s.user_id
+    WHERE s.token = ?
+    LIMIT 1
+  `).get(token) as (AuthUser & { expires_at: number }) | null
+
+  if (!row) return null
+  if (row.expires_at <= now) {
+    db.prepare('DELETE FROM auth_sessions WHERE token = ?').run(token)
+    return null
+  }
+
+  return {
+    id: row.id,
+    username: row.username,
+    points: row.points
+  }
+}
+
+function settleFinishedBets() {
+  const pendingBets = db.query(`
+    SELECT b.id, b.user_id, b.predicted_player_id, b.points_wagered, r.winner_id
+    FROM bets b
+    JOIN rounds r ON r.id = b.round_id
+    WHERE b.status = 'pending'
+      AND r.status = 'finished'
+      AND r.winner_id IS NOT NULL
+  `).all() as Array<{
+    id: number
+    user_id: string
+    predicted_player_id: string
+    points_wagered: number
+    winner_id: string
+  }>
+
+  if (pendingBets.length === 0) return
+
+  const markSettledStmt = db.prepare('UPDATE bets SET status = ?, payout = ?, settled_at = ? WHERE id = ?')
+  const updatePointsStmt = db.prepare('UPDATE web_users SET points = points + ? WHERE id = ?')
+  const now = Date.now()
+
+  for (const bet of pendingBets) {
+    const won = bet.predicted_player_id === bet.winner_id
+    const payout = won ? bet.points_wagered * 2 : 0
+
+    db.transaction(() => {
+      if (payout > 0) {
+        updatePointsStmt.run(payout, bet.user_id)
+      }
+      markSettledStmt.run(won ? 'won' : 'lost', payout, now, bet.id)
+    })()
+  }
 }
 
 // Get car image from Forza Fandom
@@ -169,21 +294,141 @@ async function serveCarImage(pathname: string): Promise<Response | null> {
 
 // API Handlers
 const handlers: Record<string, (req: Request) => Response | Promise<Response>> = {
-  // Leaderboard - top 10 players by wins
+  // Register a web user
+  '/api/auth/register': async (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const body = await req.json() as { username?: string; password?: string }
+    const username = (body.username ?? '').trim().toLowerCase()
+    const password = body.password ?? ''
+
+    if (!username || !password) {
+      return new Response(JSON.stringify({ error: 'Missing username or password' }), { status: 400 })
+    }
+
+    if (username.length < 3 || password.length < 6) {
+      return new Response(JSON.stringify({ error: 'Username must be 3+ chars and password must be 6+ chars' }), { status: 400 })
+    }
+
+    const existingUser = db.query('SELECT id FROM web_users WHERE lower(username) = lower(?)').get(username) as { id: string } | null
+    if (existingUser) {
+      return new Response(JSON.stringify({ error: 'Username already exists' }), { status: 409 })
+    }
+
+    const passwordHash = await Bun.password.hash(password, {
+      algorithm: 'bcrypt',
+      cost: 10
+    })
+    const userId = randomUUID()
+    const now = Date.now()
+    db.prepare('INSERT INTO web_users (id, username, password_hash, points, created_at) VALUES (?, ?, ?, 100, ?)')
+      .run(userId, username, passwordHash, now)
+
+    const token = `${randomUUID()}-${randomUUID()}`
+    const expiresAt = now + 1000 * 60 * 60 * 24 * 30
+    db.prepare('INSERT INTO auth_sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
+      .run(token, userId, now, expiresAt)
+
+    return new Response(JSON.stringify({
+      token,
+      user: {
+        id: userId,
+        username,
+        points: 100
+      }
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  // Login existing web user
+  '/api/auth/login': async (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const body = await req.json() as { username?: string; password?: string }
+    const username = (body.username ?? '').trim().toLowerCase()
+    const password = body.password ?? ''
+
+    if (!username || !password) {
+      return new Response(JSON.stringify({ error: 'Missing username or password' }), { status: 400 })
+    }
+
+    const user = db.query('SELECT id, username, password_hash, points FROM web_users WHERE lower(username) = lower(?)')
+      .get(username) as { id: string; username: string; password_hash: string; points: number } | null
+
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), { status: 401 })
+    }
+
+    const isValidPassword = await Bun.password.verify(password, user.password_hash, 'bcrypt')
+    if (!isValidPassword) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), { status: 401 })
+    }
+
+    const now = Date.now()
+    const token = `${randomUUID()}-${randomUUID()}`
+    const expiresAt = now + 1000 * 60 * 60 * 24 * 30
+    db.prepare('INSERT INTO auth_sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
+      .run(token, user.id, now, expiresAt)
+
+    return new Response(JSON.stringify({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        points: user.points
+      }
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/auth/me': (req) => {
+    settleFinishedBets()
+    const user = getAuthenticatedUser(req)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    return new Response(JSON.stringify({ user }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/auth/logout': (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const token = getBearerToken(req)
+    if (token) {
+      db.prepare('DELETE FROM auth_sessions WHERE token = ?').run(token)
+    }
+
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  // Leaderboard - top 10 users by points
   '/api/leaderboard': () => {
+    settleFinishedBets()
     const result = db.query(`
       SELECT 
-        p.id,
-        p.username,
-        p.display_name,
-        COUNT(r.id) as wins,
-        da.avatar_url
-      FROM players p
-      LEFT JOIN rounds r ON p.id = r.winner_id
-      LEFT JOIN discord_avatars da ON p.id = da.player_id
-      GROUP BY p.id
-      ORDER BY wins DESC
-      LIMIT 10
+        wu.id,
+        wu.username,
+        wu.points,
+        COUNT(b.id) as total_bets,
+        SUM(CASE WHEN b.status = 'won' THEN 1 ELSE 0 END) as won_bets
+      FROM web_users wu
+      LEFT JOIN bets b ON b.user_id = wu.id
+      GROUP BY wu.id
+      ORDER BY wu.points DESC, wu.username ASC
+      LIMIT 50
     `).all()
 
     return new Response(JSON.stringify(result || []), {
@@ -345,7 +590,8 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
   },
 
   // Current active round
-  '/api/current-round': () => {
+  '/api/current-round': (req) => {
+    settleFinishedBets()
     const result = db.query(`
       SELECT
         r.id,
@@ -417,7 +663,169 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       }
     }
 
-    return new Response(JSON.stringify({ ...result, players, scores, series_race: seriesRace }), {
+    const authUser = getAuthenticatedUser(req)
+    const userBet = authUser
+      ? db.query(`
+          SELECT
+            b.id,
+            b.predicted_player_id,
+            b.points_wagered,
+            b.status,
+            b.payout
+          FROM bets b
+          WHERE b.round_id = ? AND b.user_id = ?
+          LIMIT 1
+        `).get(result.id, authUser.id)
+      : null
+
+    return new Response(JSON.stringify({ ...result, players, scores, series_race: seriesRace, user_bet: userBet }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/bets/current': (req) => {
+    settleFinishedBets()
+    const user = getAuthenticatedUser(req)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const activeRound = db.query(`
+      SELECT id
+      FROM rounds
+      WHERE (status = 'pending' OR status = 'active') AND winner_id IS NULL
+      LIMIT 1
+    `).get() as { id: string } | null
+
+    if (!activeRound) {
+      return new Response(JSON.stringify({ bet: null, user }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    const bet = db.query(`
+      SELECT id, round_id, predicted_player_id, points_wagered, status, payout
+      FROM bets
+      WHERE round_id = ? AND user_id = ?
+      LIMIT 1
+    `).get(activeRound.id, user.id)
+
+    return new Response(JSON.stringify({ bet, user }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/bets/place': async (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    settleFinishedBets()
+    const user = getAuthenticatedUser(req)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const body = await req.json() as { roundId?: string; predictedPlayerId?: string; points?: number }
+    const roundId = (body.roundId ?? '').trim()
+    const predictedPlayerId = (body.predictedPlayerId ?? '').trim()
+    const points = Number(body.points)
+
+    if (!roundId || !predictedPlayerId || !Number.isInteger(points) || points <= 0) {
+      return new Response(JSON.stringify({ error: 'Invalid bet payload' }), { status: 400 })
+    }
+
+    const activeRound = db.query(`
+      SELECT id
+      FROM rounds
+      WHERE id = ?
+        AND (status = 'pending' OR status = 'active')
+        AND winner_id IS NULL
+      LIMIT 1
+    `).get(roundId) as { id: string } | null
+
+    if (!activeRound) {
+      return new Response(JSON.stringify({ error: 'Round is not available for betting' }), { status: 400 })
+    }
+
+    const playerInRound = db.query(`
+      SELECT 1 as exists_flag
+      FROM round_players
+      WHERE round_id = ? AND player_id = ?
+      LIMIT 1
+    `).get(roundId, predictedPlayerId) as { exists_flag: number } | null
+
+    if (!playerInRound) {
+      return new Response(JSON.stringify({ error: 'Selected player is not in this round' }), { status: 400 })
+    }
+
+    const now = Date.now()
+    let updatedUser: AuthUser | null = null
+    let betRecord: { id: number; round_id: string; predicted_player_id: string; points_wagered: number; status: string; payout: number } | null = null
+
+    try {
+      db.transaction(() => {
+        const currentUser = db.query('SELECT id, username, points FROM web_users WHERE id = ? LIMIT 1')
+          .get(user.id) as AuthUser | null
+
+        if (!currentUser) {
+          throw new Error('USER_NOT_FOUND')
+        }
+
+        const existingBet = db.query(`
+          SELECT id, points_wagered
+          FROM bets
+          WHERE round_id = ? AND user_id = ? AND status = 'pending'
+          LIMIT 1
+        `).get(roundId, user.id) as { id: number; points_wagered: number } | null
+
+        const availablePoints = currentUser.points + (existingBet?.points_wagered ?? 0)
+        if (points > availablePoints) {
+          throw new Error('INSUFFICIENT_POINTS')
+        }
+
+        if (existingBet) {
+          db.prepare('UPDATE web_users SET points = points + ? WHERE id = ?').run(existingBet.points_wagered, user.id)
+        }
+
+        db.prepare('UPDATE web_users SET points = points - ? WHERE id = ?').run(points, user.id)
+
+        db.prepare(`
+          INSERT INTO bets (round_id, user_id, predicted_player_id, points_wagered, status, payout, created_at, settled_at)
+          VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL)
+          ON CONFLICT(round_id, user_id)
+          DO UPDATE SET
+            predicted_player_id = excluded.predicted_player_id,
+            points_wagered = excluded.points_wagered,
+            status = 'pending',
+            payout = 0,
+            created_at = excluded.created_at,
+            settled_at = NULL
+        `).run(roundId, user.id, predictedPlayerId, points, now)
+
+        updatedUser = db.query('SELECT id, username, points FROM web_users WHERE id = ? LIMIT 1').get(user.id) as AuthUser | null
+        betRecord = db.query(`
+          SELECT id, round_id, predicted_player_id, points_wagered, status, payout
+          FROM bets
+          WHERE round_id = ? AND user_id = ?
+          LIMIT 1
+        `).get(roundId, user.id) as { id: number; round_id: string; predicted_player_id: string; points_wagered: number; status: string; payout: number } | null
+      })()
+    } catch (error) {
+      if ((error as Error).message === 'INSUFFICIENT_POINTS') {
+        return new Response(JSON.stringify({ error: 'Not enough points' }), { status: 400 })
+      }
+      if ((error as Error).message === 'USER_NOT_FOUND') {
+        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 })
+      }
+      throw error
+    }
+
+    if (!updatedUser || !betRecord) {
+      return new Response(JSON.stringify({ error: 'Failed to place bet' }), { status: 500 })
+    }
+
+    return new Response(JSON.stringify({ user: updatedUser, bet: betRecord }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },

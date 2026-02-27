@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Loader, ChevronLeft, Users, Trophy, Check } from 'lucide-react'
 import { getCachedCarImage } from '../utils/carImageCache'
+import { getMe, placeBet, readAuthToken } from '../api'
 
 interface Player {
   id: string
@@ -24,6 +25,19 @@ interface ActiveRoundData {
   created_at: string
   players: Player[]
   scores?: Array<{ player_id: string; display_name: string; points: number }>
+  user_bet?: {
+    id: number
+    predicted_player_id: string
+    points_wagered: number
+    status: string
+    payout: number
+  } | null
+}
+
+interface AuthUser {
+  id: string
+  username: string
+  points: number
 }
 
 export function ActiveRound() {
@@ -33,17 +47,38 @@ export function ActiveRound() {
   const [playerCarImages, setPlayerCarImages] = useState<Record<string, string | null>>({})
   const [playerImageIndex, setPlayerImageIndex] = useState<Record<string, number>>({})
   const [confirmedImages, setConfirmedImages] = useState<Record<string, boolean>>({})
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null)
+  const [betPlayerId, setBetPlayerId] = useState('')
+  const [betPoints, setBetPoints] = useState('10')
+  const [betMessage, setBetMessage] = useState<string | null>(null)
+  const [betError, setBetError] = useState<string | null>(null)
+  const [placingBet, setPlacingBet] = useState(false)
   const lastRoundIdRef = useRef<string | null>(null)
   const redirectedRef = useRef(false)
 
   const getConfirmedKey = (carName: string) => `car-image-confirmed-${carName}`
 
   useEffect(() => {
+    const token = readAuthToken()
+    if (!token) {
+      setAuthUser(null)
+      return
+    }
+
+    getMe()
+      .then(result => setAuthUser(result.user))
+      .catch(() => setAuthUser(null))
+  }, [])
+
+  useEffect(() => {
     let mounted = true
     
     const fetchActiveRound = async () => {
       try {
-        const response = await fetch('/api/current-round')
+        const token = readAuthToken()
+        const response = await fetch('/api/current-round', {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined
+        })
         if (!mounted) return
         
         if (!response.ok) {
@@ -57,6 +92,11 @@ export function ActiveRound() {
 
         const data = await response.json()
         lastRoundIdRef.current = data.id
+
+        if (data.user_bet) {
+          setBetPlayerId(data.user_bet.predicted_player_id)
+          setBetPoints(String(data.user_bet.points_wagered))
+        }
         
         // Only update state if data has changed
         setRound(prevRound => {
@@ -223,6 +263,49 @@ export function ActiveRound() {
     return `$${value.toLocaleString()}`
   }
 
+  const handlePlaceBet = async () => {
+    if (!round) return
+    setBetError(null)
+    setBetMessage(null)
+
+    if (!authUser) {
+      setBetError('Sign in first to place a bet')
+      return
+    }
+
+    const wager = Number.parseInt(betPoints, 10)
+    if (!betPlayerId || Number.isNaN(wager) || wager <= 0) {
+      setBetError('Choose a player and enter a valid wager')
+      return
+    }
+
+    setPlacingBet(true)
+    try {
+      const result = await placeBet(round.id, betPlayerId, wager)
+      setAuthUser(result.user)
+      setBetMessage('Bet placed successfully')
+      setRound(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          user_bet: {
+            id: result.bet.id,
+            predicted_player_id: result.bet.predicted_player_id,
+            points_wagered: result.bet.points_wagered,
+            status: result.bet.status,
+            payout: result.bet.payout
+          }
+        }
+      })
+    } catch (error) {
+      setBetError((error as Error).message)
+    } finally {
+      setPlacingBet(false)
+    }
+  }
+
+  const selectedBetPlayerName = round?.players.find(player => player.id === round.user_bet?.predicted_player_id)?.display_name
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -311,6 +394,66 @@ export function ActiveRound() {
           </div>
         </div>
       )}
+
+      <div className="mb-8 bg-gray-900/80 border-2 border-orange-500 rounded-xl p-6">
+        <h2 className="text-2xl font-black text-orange-400 mb-4 uppercase drop-shadow-lg">Betting</h2>
+
+        {!authUser ? (
+          <div>
+            <p className="text-gray-300 font-bold mb-3">Sign in to place bets. Every account starts with 100 points.</p>
+            <Link
+              to="/signin"
+              className="inline-flex items-center bg-orange-500 hover:bg-orange-400 text-white font-black px-4 py-2 rounded-lg transition"
+            >
+              Sign In
+            </Link>
+          </div>
+        ) : (
+          <div>
+            <p className="text-gray-300 font-bold mb-3">{authUser.username} • {authUser.points} points available</p>
+
+            {round.user_bet && (
+              <p className="text-orange-300 font-bold mb-3">
+                Current bet: {selectedBetPlayerName ?? 'Unknown player'} for {round.user_bet.points_wagered} points
+              </p>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <select
+                value={betPlayerId}
+                onChange={event => setBetPlayerId(event.target.value)}
+                className="bg-gray-800 border border-orange-500/50 rounded-lg px-3 py-2 text-white font-bold"
+              >
+                <option value="">Choose winner</option>
+                {round.players.map(player => (
+                  <option key={player.id} value={player.id}>{player.display_name}</option>
+                ))}
+              </select>
+
+              <input
+                type="number"
+                min={1}
+                value={betPoints}
+                onChange={event => setBetPoints(event.target.value)}
+                className="bg-gray-800 border border-orange-500/50 rounded-lg px-3 py-2 text-white font-bold"
+                placeholder="Points"
+              />
+
+              <button
+                type="button"
+                disabled={placingBet}
+                onClick={handlePlaceBet}
+                className="bg-orange-500 hover:bg-orange-400 disabled:opacity-60 text-white font-black rounded-lg px-4 py-2 transition"
+              >
+                {placingBet ? 'Placing...' : 'Place Bet'}
+              </button>
+            </div>
+
+            {betError && <p className="text-red-400 font-bold text-sm">{betError}</p>}
+            {betMessage && <p className="text-green-400 font-bold text-sm">{betMessage}</p>}
+          </div>
+        )}
+      </div>
 
       {/* Players Section */}
       <div>

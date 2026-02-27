@@ -6,6 +6,7 @@ import { Games, GameDetail } from './pages/Games'
 import { LapTimes, TimeDetail } from './pages/LapTimes'
 import { PlayerDetail } from './pages/PlayerDetail'
 import { ActiveRound } from './pages/ActiveRound'
+import { SignIn } from './pages/SignIn'
 
 function GamesLayout() {
   return <Outlet />
@@ -23,6 +24,7 @@ export function App() {
         
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/signin" element={<SignIn />} />
           <Route path="/active-round" element={<div className="min-h-screen bg-black"><main className="max-w-6xl mx-auto px-4 py-8"><ActiveRound /></main></div>} />
           <Route path="/leaderboard" element={<div className="min-h-screen bg-black"><main className="max-w-6xl mx-auto px-4 py-8"><Leaderboard /></main></div>} />
           <Route path="/players/:playerId" element={<div className="min-h-screen bg-black"><main className="max-w-6xl mx-auto px-4 py-8"><PlayerDetail /></main></div>} />

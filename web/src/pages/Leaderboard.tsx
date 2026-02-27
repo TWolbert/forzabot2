@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { getLeaderboard } from '../api'
 import { Loader } from 'lucide-react'
 
 interface LeaderboardEntry {
   id: string
   username: string
-  display_name: string
-  wins: number
-  avatar_url?: string
+  points: number
+  total_bets: number
+  won_bets: number
 }
 
 export function Leaderboard() {
@@ -40,7 +39,7 @@ export function Leaderboard() {
         <div>
           <div className="text-xs font-black text-green-300 uppercase tracking-[0.3em] mb-2">Forza League</div>
           <h2 className="text-5xl font-black text-green-400 drop-shadow-lg">Leaderboard</h2>
-          <p className="text-gray-400 font-bold mt-2">Ranked by total wins</p>
+          <p className="text-gray-400 font-bold mt-2">Ranked by total points</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-green-500/10 border border-green-500/40 px-4 py-2 rounded-full text-green-300 text-xs font-black uppercase">
@@ -71,28 +70,15 @@ export function Leaderboard() {
                     <span className="text-xs font-black uppercase text-green-300">Rank {index + 1}</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    {player.avatar_url ? (
-                      <img
-                        src={player.avatar_url}
-                        alt={player.display_name || player.username}
-                        className="w-14 h-14 rounded-full border-2 border-green-400/80 shadow-lg object-cover"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full border-2 border-green-400/50 bg-gray-800"></div>
-                    )}
+                    <div className="w-14 h-14 rounded-full border-2 border-green-400/50 bg-gray-800"></div>
                     <div>
-                      <Link
-                        to={`/players/${player.id}`}
-                        className="text-2xl font-black text-white hover:text-green-300 transition"
-                      >
-                        {player.display_name || player.username}
-                      </Link>
-                      <p className="text-xs text-gray-400 font-bold mt-1">Total Wins</p>
+                      <p className="text-2xl font-black text-white">{player.username}</p>
+                      <p className="text-xs text-gray-400 font-bold mt-1">Bets Won: {player.won_bets}</p>
                     </div>
                   </div>
                   <div className="mt-6 flex items-end justify-between">
-                    <span className="text-4xl font-black text-green-300 drop-shadow-lg">{player.wins}</span>
-                    <span className="text-xs font-black uppercase text-green-300/70">Wins</span>
+                    <span className="text-4xl font-black text-green-300 drop-shadow-lg">{player.points}</span>
+                    <span className="text-xs font-black uppercase text-green-300/70">Points</span>
                   </div>
                 </div>
               </div>
@@ -102,32 +88,23 @@ export function Leaderboard() {
           {rest.length > 0 && (
             <div className="space-y-3">
               {rest.map((player, index) => (
-                <Link
+                <div
                   key={player.id}
-                  to={`/players/${player.id}`}
                   className="flex items-center gap-4 bg-gray-900/70 border border-gray-800 rounded-xl px-4 py-3 hover:bg-gray-800 transition"
                 >
                   <div className="text-lg font-black text-gray-400 w-10 text-right">{index + 4}.</div>
-                  {player.avatar_url ? (
-                    <img
-                      src={player.avatar_url}
-                      alt={player.display_name || player.username}
-                      className="w-10 h-10 rounded-full border-2 border-green-400/80 shadow-lg object-cover"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full border-2 border-green-400/50 bg-gray-800"></div>
-                  )}
+                  <div className="w-10 h-10 rounded-full border-2 border-green-400/50 bg-gray-800"></div>
                   <div className="flex-1 min-w-0">
                     <div className="font-black text-white truncate">
-                      {player.display_name || player.username}
+                      {player.username}
                     </div>
-                    <div className="text-xs text-gray-400 font-bold">Driver</div>
+                    <div className="text-xs text-gray-400 font-bold">Bets: {player.total_bets}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-black text-green-300">{player.wins}</div>
-                    <div className="text-xs text-gray-400 font-bold uppercase">Wins</div>
+                    <div className="text-2xl font-black text-green-300">{player.points}</div>
+                    <div className="text-xs text-gray-400 font-bold uppercase">Points</div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
