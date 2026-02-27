@@ -1043,15 +1043,12 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
 
         db.prepare('UPDATE web_users SET points = points - ? WHERE id = ?').run(points, user.id)
 
+        // Delete existing bet for this round/player/user combination, then insert new one
+        db.prepare('DELETE FROM bets WHERE round_id = ? AND user_id = ? AND predicted_player_id = ?').run(roundId, user.id, predictedPlayerId)
+        
         db.prepare(`
           INSERT INTO bets (round_id, user_id, predicted_player_id, points_wagered, status, payout, created_at, settled_at)
           VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL)
-          ON CONFLICT(round_id, user_id, predicted_player_id)
-          DO UPDATE SET
-            points_wagered = excluded.points_wagered,
-            status = 'pending',
-            payout = 0,
-            settled_at = NULL
         `).run(roundId, user.id, predictedPlayerId, points, now)
 
         updatedUser = db.query('SELECT id, username, points FROM web_users WHERE id = ? LIMIT 1').get(user.id) as AuthUser | null
