@@ -47,8 +47,8 @@ export function Profile() {
     const fetchDiscordLink = async () => {
       try {
         const link = await getDiscordLink()
-        if (link) {
-          setDiscordUsername(link)
+        if (link?.discord_username) {
+          setDiscordUsername(link.discord_username)
         }
       } catch (err) {
         console.error('Failed to fetch Discord link:', err)
