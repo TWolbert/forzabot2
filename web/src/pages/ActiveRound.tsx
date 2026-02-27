@@ -32,6 +32,15 @@ interface ActiveRoundData {
     status: string
     payout: number
   }>
+  all_bets?: Array<{
+    id: number
+    user_id: string
+    username: string
+    predicted_player_id: string
+    points_wagered: number
+    status: string
+    payout: number
+  }>
 }
 
 interface AuthUser {
@@ -403,6 +412,28 @@ export function ActiveRound() {
       <div className="mb-8 bg-gray-900/80 border-2 border-orange-500 rounded-xl p-6">
         <h2 className="text-2xl font-black text-orange-400 mb-4 uppercase drop-shadow-lg">Betting</h2>
 
+        {/* Show all bets */}
+        {round.all_bets && round.all_bets.length > 0 && (
+          <div className="mb-4 bg-gray-800 border border-orange-500/50 rounded-lg p-4">
+            <p className="text-orange-300 font-bold text-sm mb-3">All Bets ({round.all_bets.length}):</p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {round.all_bets.map(bet => {
+                const playerName = round.players.find(p => p.id === bet.predicted_player_id)?.display_name
+                return (
+                  <div key={bet.id} className="flex items-center justify-between bg-gray-900/50 rounded px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-xs font-bold">{bet.username}</span>
+                      <span className="text-gray-500">→</span>
+                      <span className="text-white text-sm font-bold">{playerName ?? 'Unknown'}</span>
+                    </div>
+                    <span className="text-orange-300 font-black text-sm">{bet.points_wagered}pts</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {!authUser ? (
           <div>
             <p className="text-gray-300 font-bold mb-3">Sign in to place bets. Every account starts with 100 points.</p>
@@ -412,6 +443,11 @@ export function ActiveRound() {
             >
               Sign In
             </Link>
+          </div>
+        ) : round.status === 'active' || round.status === 'finished' ? (
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4">
+            <p className="text-red-300 font-black text-lg mb-2">🔒 Bets Locked</p>
+            <p className="text-gray-300 text-sm">The game has started. No more bets can be placed.</p>
           </div>
         ) : (
           <div>

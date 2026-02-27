@@ -149,16 +149,25 @@ function lockBetsForRound(roundId: string) {
 
 function awardPlacementPoints(roundId: string) {
   const round = db.query('SELECT race_type FROM rounds WHERE id = ?').get(roundId) as { race_type: string } | null
-  if (!round) return
+  if (!round) {
+    console.log(`⚠ Round ${roundId} not found, cannot award placement points`)
+    return
+  }
+
+  console.log(`🏁 Awarding placement points for round ${roundId} (race type: ${round.race_type || 'unknown'})`)
 
   const scores = db.query(`
     SELECT player_id, points FROM round_scores WHERE round_id = ? ORDER BY points DESC LIMIT 2
   `).all(roundId) as Array<{ player_id: string; points: number }> | null
 
-  if (!scores || scores.length === 0) return
+  if (!scores || scores.length === 0) {
+    console.log(`⚠ No scores found for round ${roundId}, cannot award placement points`)
+    return
+  }
 
   const awardStmt = db.prepare('UPDATE web_users SET points = points + ? WHERE id = ?')
 
+  // Always award 50 points to 1st place winner, regardless of race type
   const winnerPlayerId = scores[0]?.player_id
   if (winnerPlayerId) {
     const winnerUser = db.query(`
@@ -167,12 +176,13 @@ function awardPlacementPoints(roundId: string) {
 
     if (winnerUser) {
       awardStmt.run(50, winnerUser.web_user_id)
-      console.log(`✓ Awarded 50 points to web user ${winnerUser.web_user_id} for 1st place (Discord ID: ${winnerPlayerId})`)
+      console.log(`✓ Awarded 50 points to web user ${winnerUser.web_user_id} for 1st place (Discord ID: ${winnerPlayerId}, race type: ${round.race_type})`)
     } else {
       console.log(`⚠ No linked web account found for 1st place winner (Discord ID: ${winnerPlayerId}) - no points awarded`)
     }
   }
 
+  // Only award 25 points to 2nd place for "all" race types
   if (round.race_type?.toLowerCase() === 'all' && scores.length >= 2) {
     const secondPlayerId = scores[1]?.player_id
     if (secondPlayerId) {
@@ -964,7 +974,23 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         `).all(result.id, authUser.id)
       : []
 
-    return new Response(JSON.stringify({ ...result, players, scores, series_race: seriesRace, user_bets: userBets }), {
+    // Get all bets for this round (visible to everyone)
+    const allBets = db.query(`
+      SELECT
+        b.id,
+        b.user_id,
+        b.predicted_player_id,
+        b.points_wagered,
+        b.status,
+        b.payout,
+        wu.username
+      FROM bets b
+      JOIN web_users wu ON b.user_id = wu.id
+      WHERE b.round_id = ?
+      ORDER BY b.created_at DESC
+    `).all(result.id)
+
+    return new Response(JSON.stringify({ ...result, players, scores, series_race: seriesRace, user_bets: userBets, all_bets: allBets }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
