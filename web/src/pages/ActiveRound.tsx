@@ -25,13 +25,13 @@ interface ActiveRoundData {
   created_at: string
   players: Player[]
   scores?: Array<{ player_id: string; display_name: string; points: number }>
-  user_bet?: {
+  user_bets?: Array<{
     id: number
     predicted_player_id: string
     points_wagered: number
     status: string
     payout: number
-  } | null
+  }>
 }
 
 interface AuthUser {
@@ -93,9 +93,11 @@ export function ActiveRound() {
         const data = await response.json()
         lastRoundIdRef.current = data.id
 
-        if (data.user_bet) {
-          setBetPlayerId(data.user_bet.predicted_player_id)
-          setBetPoints(String(data.user_bet.points_wagered))
+        // Populate form with first bet if exists (allows editing)
+        if (data.user_bets && data.user_bets.length > 0) {
+          const firstBet = data.user_bets[0]
+          setBetPlayerId(firstBet.predicted_player_id)
+          setBetPoints(String(firstBet.points_wagered))
         }
         
         // Only update state if data has changed
@@ -284,17 +286,20 @@ export function ActiveRound() {
       const result = await placeBet(round.id, betPlayerId, wager)
       setAuthUser(result.user)
       setBetMessage('Bet placed successfully')
+      setBetPlayerId('')
+      setBetPoints('10')
       setRound(prev => {
         if (!prev) return prev
+        const newBet = {
+          id: result.bet.id,
+          predicted_player_id: result.bet.predicted_player_id,
+          points_wagered: result.bet.points_wagered,
+          status: result.bet.status,
+          payout: result.bet.payout
+        }
         return {
           ...prev,
-          user_bet: {
-            id: result.bet.id,
-            predicted_player_id: result.bet.predicted_player_id,
-            points_wagered: result.bet.points_wagered,
-            status: result.bet.status,
-            payout: result.bet.payout
-          }
+          user_bets: [...(prev.user_bets || []), newBet]
         }
       })
     } catch (error) {
@@ -304,7 +309,7 @@ export function ActiveRound() {
     }
   }
 
-  const selectedBetPlayerName = round?.players.find(player => player.id === round.user_bet?.predicted_player_id)?.display_name
+  const selectedBetPlayerName = round?.players.find(player => player.id === betPlayerId)?.display_name
 
   if (loading) {
     return (
@@ -412,10 +417,20 @@ export function ActiveRound() {
           <div>
             <p className="text-gray-300 font-bold mb-3">{authUser.username} • {authUser.points} points available</p>
 
-            {round.user_bet && (
-              <p className="text-orange-300 font-bold mb-3">
-                Current bet: {selectedBetPlayerName ?? 'Unknown player'} for {round.user_bet.points_wagered} points
-              </p>
+            {round.user_bets && round.user_bets.length > 0 && (
+              <div className="mb-3 bg-gray-800 border border-orange-500/50 rounded-lg p-3">
+                <p className="text-orange-300 font-bold text-sm mb-2">Your bets:</p>
+                <div className="space-y-1">
+                  {round.user_bets.map(bet => {
+                    const playerName = round.players.find(p => p.id === bet.predicted_player_id)?.display_name
+                    return (
+                      <div key={bet.id} className="text-gray-300 text-sm font-bold">
+                        {playerName ?? 'Unknown'} • {bet.points_wagered} points
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">

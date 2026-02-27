@@ -2,6 +2,21 @@ import { ChatInputCommandInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuil
 import { formatCurrency, getTopCarImage } from "../utils";
 import { db } from "../database";
 
+async function lockBetsForRound(roundId: string) {
+  try {
+    const port = process.env.DASHBOARD_PORT || '34234'
+    const response = await fetch(`http://localhost:${port}/api/bets/lock/${roundId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) {
+      console.error(`Failed to lock bets for round ${roundId}:`, await response.text())
+    }
+  } catch (error) {
+    console.error(`Error calling lock bets API:`, error)
+  }
+}
+
 export async function handleGameStart(interaction: ChatInputCommandInteraction, client: Client) {
   // Get the most recent pending round
   const round = db.query(
@@ -112,6 +127,9 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
   // Update round status to active
   const updateStmt = db.prepare("UPDATE rounds SET status = 'active' WHERE id = ?");
   updateStmt.run(round.id);
+
+  // Lock bets for this round
+  await lockBetsForRound(round.id);
 
   if (isAllSeries) {
     const scoreStmt = db.prepare(
@@ -274,6 +292,21 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
     const winnerId = standings[0]?.[0] ?? roundPlayers[0]?.id;
     if (winnerId) {
       db.prepare("UPDATE rounds SET status = 'finished', winner_id = ? WHERE id = ?").run(winnerId, round.id);
+      
+      // Settle bets and award placement points via API
+      try {
+        const port = process.env.DASHBOARD_PORT || '34234'
+        await fetch(`http://localhost:${port}/api/bets/settle/${round.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        await fetch(`http://localhost:${port}/api/bets/award-placement/${round.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      } catch (error) {
+        console.error(`Error settling bets and awarding points:`, error)
+      }
     }
 
     const winnerCar = winnerId ? (carChoiceMap.get(winnerId) || "No car selected") : "No car selected";
@@ -420,6 +453,21 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
       // Update round with winner and set status to finished
       const finishStmt = db.prepare("UPDATE rounds SET status = 'finished', winner_id = ? WHERE id = ?");
       finishStmt.run(winnerId, round.id);
+
+      // Settle bets and award placement points via API
+      try {
+        const port = process.env.DASHBOARD_PORT || '34234'
+        await fetch(`http://localhost:${port}/api/bets/settle/${round.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        await fetch(`http://localhost:${port}/api/bets/award-placement/${round.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      } catch (error) {
+        console.error(`Error settling bets and awarding points:`, error)
+      }
 
       // Get winner's car
       const winnerCar = carChoiceMap.get(winnerId) || "No car selected";

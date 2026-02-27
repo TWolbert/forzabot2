@@ -142,6 +142,48 @@ function settleFinishedBets() {
   }
 }
 
+function lockBetsForRound(roundId: string) {
+  db.prepare('UPDATE bets SET status = ? WHERE round_id = ? AND status = ?')
+    .run('locked', roundId, 'pending')
+}
+
+function awardPlacementPoints(roundId: string) {
+  const round = db.query('SELECT race_type FROM rounds WHERE id = ?').get(roundId) as { race_type: string } | null
+  if (!round) return
+
+  const scores = db.query(`
+    SELECT player_id, points FROM round_scores WHERE round_id = ? ORDER BY points DESC LIMIT 2
+  `).all(roundId) as Array<{ player_id: string; points: number }> | null
+
+  if (!scores || scores.length === 0) return
+
+  const awardStmt = db.prepare('UPDATE web_users SET points = points + ? WHERE id = ?')
+
+  const winnerPlayerId = scores[0]?.player_id
+  if (winnerPlayerId) {
+    const winnerUser = db.query(`
+      SELECT web_user_id FROM web_users_discord WHERE discord_user_id = ?
+    `).get(winnerPlayerId) as { web_user_id: string } | null
+
+    if (winnerUser) {
+      awardStmt.run(50, winnerUser.web_user_id)
+    }
+  }
+
+  if (round.race_type?.toLowerCase() === 'all' && scores.length >= 2) {
+    const secondPlayerId = scores[1]?.player_id
+    if (secondPlayerId) {
+      const secondUser = db.query(`
+        SELECT web_user_id FROM web_users_discord WHERE discord_user_id = ?
+      `).get(secondPlayerId) as { web_user_id: string } | null
+
+      if (secondUser) {
+        awardStmt.run(25, secondUser.web_user_id)
+      }
+    }
+  }
+}
+
 // Get car image from Forza Fandom
 async function getFandomCarImage(carName: string, index = 0): Promise<string | null> {
   const baseUrl = "https://forza.fandom.com/api.php"
@@ -414,6 +456,209 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     })
   },
 
+  '/api/auth/link-discord': async (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const user = getAuthenticatedUser(req)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const body = await req.json() as { discord_username?: string }
+    const discordUsername = (body.discord_username ?? '').trim().toLowerCase()
+
+    if (!discordUsername) {
+      return new Response(JSON.stringify({ error: 'Missing discord_username' }), { status: 400 })
+    }
+
+    const now = Date.now()
+    try {
+      db.prepare(`
+        INSERT INTO web_users_discord (web_user_id, discord_username, linked_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(web_user_id)
+        DO UPDATE SET discord_username = excluded.discord_username, linked_at = excluded.linked_at
+      `).run(user.id, discordUsername, now)
+
+      const linked = db.query('SELECT discord_username FROM web_users_discord WHERE web_user_id = ?')
+        .get(user.id) as { discord_username: string } | null
+
+      return new Response(JSON.stringify({ ok: true, discord_username: linked?.discord_username }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Error linking discord:', error)
+      return new Response(JSON.stringify({ error: 'Failed to link discord account' }), { status: 500 })
+    }
+  },
+
+  '/api/auth/discord-link': (req) => {
+    const user = getAuthenticatedUser(req)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const link = db.query('SELECT discord_username FROM web_users_discord WHERE web_user_id = ?')
+      .get(user.id) as { discord_username: string } | null
+
+    return new Response(JSON.stringify({ discord_username: link?.discord_username || null }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/auth/update-username': async (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const user = getAuthenticatedUser(req)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const body = await req.json() as { username?: string }
+    const newUsername = (body.username ?? '').trim()
+
+    if (!newUsername) {
+      return new Response(JSON.stringify({ error: 'Username cannot be empty' }), { status: 400 })
+    }
+
+    if (newUsername.length < 3) {
+      return new Response(JSON.stringify({ error: 'Username must be at least 3 characters' }), { status: 400 })
+    }
+
+    if (newUsername.length > 32) {
+      return new Response(JSON.stringify({ error: 'Username must be 32 characters or less' }), { status: 400 })
+    }
+
+    // Check if username is already taken
+    const existing = db.query('SELECT id FROM web_users WHERE username = ? AND id != ?')
+      .get(newUsername, user.id) as { id: string } | null
+
+    if (existing) {
+      return new Response(JSON.stringify({ error: 'Username is already taken' }), { status: 400 })
+    }
+
+    try {
+      db.prepare('UPDATE web_users SET username = ? WHERE id = ?').run(newUsername, user.id)
+
+      const updatedUser = db.query('SELECT id, username, points FROM web_users WHERE id = ?')
+        .get(user.id) as { id: string; username: string; points: number } | null
+
+      return new Response(JSON.stringify({ user: updatedUser }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Error updating username:', error)
+      return new Response(JSON.stringify({ error: 'Failed to update username' }), { status: 500 })
+    }
+  },
+
+  '/api/bets/lock/:roundId': (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const url = new URL(req.url)
+    const roundId = url.pathname.split('/')[4]
+
+    if (!roundId) {
+      return new Response(JSON.stringify({ error: 'Missing roundId' }), { status: 400 })
+    }
+
+    try {
+      lockBetsForRound(roundId)
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Error locking bets:', error)
+      return new Response(JSON.stringify({ error: 'Failed to lock bets' }), { status: 500 })
+    }
+  },
+
+  '/api/bets/settle/:roundId': (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const url = new URL(req.url)
+    const roundId = url.pathname.split('/')[4]
+
+    if (!roundId) {
+      return new Response(JSON.stringify({ error: 'Missing roundId' }), { status: 400 })
+    }
+
+    try {
+      // Settle bets for this specific round
+      const pendingBets = db.query(`
+        SELECT b.id, b.user_id, b.predicted_player_id, b.points_wagered, r.winner_id
+        FROM bets b
+        JOIN rounds r ON r.id = b.round_id
+        WHERE b.status = 'pending'
+          AND r.status = 'finished'
+          AND r.winner_id IS NOT NULL
+          AND r.id = ?
+      `).all(roundId) as Array<{
+        id: number
+        user_id: string
+        predicted_player_id: string
+        points_wagered: number
+        winner_id: string
+      }>
+
+      if (pendingBets.length > 0) {
+        const markSettledStmt = db.prepare('UPDATE bets SET status = ?, payout = ?, settled_at = ? WHERE id = ?')
+        const updatePointsStmt = db.prepare('UPDATE web_users SET points = points + ? WHERE id = ?')
+        const now = Date.now()
+
+        for (const bet of pendingBets) {
+          const won = bet.predicted_player_id === bet.winner_id
+          const payout = won ? bet.points_wagered * 2 : 0
+
+          db.transaction(() => {
+            if (payout > 0) {
+              updatePointsStmt.run(payout, bet.user_id)
+            }
+            markSettledStmt.run(won ? 'won' : 'lost', payout, now, bet.id)
+          })()
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Error settling bets:', error)
+      return new Response(JSON.stringify({ error: 'Failed to settle bets' }), { status: 500 })
+    }
+  },
+
+  '/api/bets/award-placement/:roundId': (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const url = new URL(req.url)
+    const roundId = url.pathname.split('/')[4]
+
+    if (!roundId) {
+      return new Response(JSON.stringify({ error: 'Missing roundId' }), { status: 400 })
+    }
+
+    try {
+      awardPlacementPoints(roundId)
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Error awarding placement points:', error)
+      return new Response(JSON.stringify({ error: 'Failed to award placement points' }), { status: 500 })
+    }
+  },
+
   // Leaderboard - top 10 users by points
   '/api/leaderboard': () => {
     settleFinishedBets()
@@ -664,7 +909,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     }
 
     const authUser = getAuthenticatedUser(req)
-    const userBet = authUser
+    const userBets = authUser
       ? db.query(`
           SELECT
             b.id,
@@ -674,11 +919,11 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
             b.payout
           FROM bets b
           WHERE b.round_id = ? AND b.user_id = ?
-          LIMIT 1
-        `).get(result.id, authUser.id)
-      : null
+          ORDER BY b.created_at DESC
+        `).all(result.id, authUser.id)
+      : []
 
-    return new Response(JSON.stringify({ ...result, players, scores, series_race: seriesRace, user_bet: userBet }), {
+    return new Response(JSON.stringify({ ...result, players, scores, series_race: seriesRace, user_bets: userBets }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
@@ -775,11 +1020,19 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         const existingBet = db.query(`
           SELECT id, points_wagered
           FROM bets
-          WHERE round_id = ? AND user_id = ? AND status = 'pending'
+          WHERE round_id = ? AND user_id = ? AND predicted_player_id = ? AND status = 'pending'
           LIMIT 1
-        `).get(roundId, user.id) as { id: number; points_wagered: number } | null
+        `).get(roundId, user.id, predictedPlayerId) as { id: number; points_wagered: number } | null
 
+        const totalWageredOnRound = db.query(`
+          SELECT SUM(points_wagered) as total
+          FROM bets
+          WHERE round_id = ? AND user_id = ? AND status = 'pending'
+        `).get(roundId, user.id) as { total: number | null } | null
+
+        const currentWagered = totalWageredOnRound?.total ?? 0
         const availablePoints = currentUser.points + (existingBet?.points_wagered ?? 0)
+        
         if (points > availablePoints) {
           throw new Error('INSUFFICIENT_POINTS')
         }
@@ -793,13 +1046,11 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         db.prepare(`
           INSERT INTO bets (round_id, user_id, predicted_player_id, points_wagered, status, payout, created_at, settled_at)
           VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL)
-          ON CONFLICT(round_id, user_id)
+          ON CONFLICT(round_id, user_id, predicted_player_id)
           DO UPDATE SET
-            predicted_player_id = excluded.predicted_player_id,
             points_wagered = excluded.points_wagered,
             status = 'pending',
             payout = 0,
-            created_at = excluded.created_at,
             settled_at = NULL
         `).run(roundId, user.id, predictedPlayerId, points, now)
 
@@ -807,9 +1058,9 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         betRecord = db.query(`
           SELECT id, round_id, predicted_player_id, points_wagered, status, payout
           FROM bets
-          WHERE round_id = ? AND user_id = ?
+          WHERE round_id = ? AND user_id = ? AND predicted_player_id = ?
           LIMIT 1
-        `).get(roundId, user.id) as { id: number; round_id: string; predicted_player_id: string; points_wagered: number; status: string; payout: number } | null
+        `).get(roundId, user.id, predictedPlayerId) as { id: number; round_id: string; predicted_player_id: string; points_wagered: number; status: string; payout: number } | null
       })()
     } catch (error) {
       if ((error as Error).message === 'INSUFFICIENT_POINTS') {

@@ -53,12 +53,28 @@ export function Navigation() {
     }
 
     fetchAuth()
+
+    const onAuthChanged = () => {
+      fetchAuth()
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'forzabot-auth-token') {
+        fetchAuth()
+      }
+    }
+
+    window.addEventListener('forzabot-auth-changed', onAuthChanged)
+    window.addEventListener('storage', onStorage)
+
     // Check every 5 seconds for active round status
     const interval = setInterval(checkActiveRound, 5000)
     
     return () => {
       mounted = false
       clearInterval(interval)
+      window.removeEventListener('forzabot-auth-changed', onAuthChanged)
+      window.removeEventListener('storage', onStorage)
     }
   }, [])
 
@@ -148,6 +164,18 @@ export function Navigation() {
 
             {authUser ? (
               <>
+                <Link
+                  to="/profile"
+                  className={`flex items-center gap-2 px-4 py-2 font-bold transition transform hover:scale-110 ${
+                    location.pathname === '/profile'
+                      ? 'bg-white text-purple-600 shadow-lg'
+                      : 'hover:bg-orange-500 hover:shadow-lg'
+                  }`}
+                  style={{clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)'}}
+                  title="View your profile and link Discord"
+                >
+                  PROFILE
+                </Link>
                 <div className="px-3 py-2 bg-black/30 border border-orange-300/60 rounded text-xs font-black">
                   {authUser.username} • {authUser.points} pts
                 </div>

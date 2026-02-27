@@ -110,10 +110,17 @@ export function initializeDatabase() {
       payout INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       settled_at INTEGER,
-      UNIQUE (round_id, user_id),
+      UNIQUE (round_id, user_id, predicted_player_id),
       FOREIGN KEY (round_id) REFERENCES rounds (id),
       FOREIGN KEY (user_id) REFERENCES web_users (id),
       FOREIGN KEY (predicted_player_id) REFERENCES players (id)
+    );
+    CREATE TABLE IF NOT EXISTS web_users_discord (
+      web_user_id TEXT PRIMARY KEY,
+      discord_username TEXT NOT NULL UNIQUE,
+      discord_user_id TEXT,
+      linked_at INTEGER NOT NULL,
+      FOREIGN KEY (web_user_id) REFERENCES web_users (id)
     );
   `);
 
@@ -196,7 +203,14 @@ export function initializeDatabase() {
 
   // Add bets table if it doesn't exist
   try {
-    db.exec(`CREATE TABLE IF NOT EXISTS bets (id INTEGER PRIMARY KEY AUTOINCREMENT, round_id TEXT NOT NULL, user_id TEXT NOT NULL, predicted_player_id TEXT NOT NULL, points_wagered INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'pending', payout INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, settled_at INTEGER, UNIQUE (round_id, user_id))`);
+    db.exec(`CREATE TABLE IF NOT EXISTS bets (id INTEGER PRIMARY KEY AUTOINCREMENT, round_id TEXT NOT NULL, user_id TEXT NOT NULL, predicted_player_id TEXT NOT NULL, points_wagered INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'pending', payout INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, settled_at INTEGER, UNIQUE (round_id, user_id, predicted_player_id))`);
+  } catch (e) {
+    // Table already exists, ignore
+  }
+
+  // Add web_users_discord table if it doesn't exist
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS web_users_discord (web_user_id TEXT PRIMARY KEY, discord_username TEXT NOT NULL UNIQUE, discord_user_id TEXT, linked_at INTEGER NOT NULL)`);
   } catch (e) {
     // Table already exists, ignore
   }

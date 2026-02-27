@@ -11,9 +11,11 @@ function getAuthToken(): string | null {
 function setAuthToken(token: string | null) {
   if (!token) {
     localStorage.removeItem(AUTH_TOKEN_KEY)
+    window.dispatchEvent(new Event('forzabot-auth-changed'))
     return
   }
   localStorage.setItem(AUTH_TOKEN_KEY, token)
+  window.dispatchEvent(new Event('forzabot-auth-changed'))
 }
 
 async function apiRequest(path: string, method: HttpMethod = 'GET', body?: unknown, withAuth = false) {
@@ -76,6 +78,26 @@ export async function logout() {
   } finally {
     setAuthToken(null)
   }
+}
+
+export async function linkDiscord(discordUsername: string) {
+  return apiRequest('/auth/link-discord', 'POST', { discord_username: discordUsername }, true) as Promise<{
+    ok: boolean
+    discord_username: string | null
+  }>
+}
+
+export async function getDiscordLink() {
+  return apiRequest('/auth/discord-link', 'GET', undefined, true) as Promise<{
+    discord_username: string | null
+  }>
+}
+
+export async function updateUsername(newUsername: string) {
+  const data = await apiRequest('/auth/update-username', 'POST', { username: newUsername }, true) as {
+    user: { id: string; username: string; points: number }
+  }
+  return data
 }
 
 export async function placeBet(roundId: string, predictedPlayerId: string, points: number) {
