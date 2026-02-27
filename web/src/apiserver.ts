@@ -628,6 +628,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       return new Response(JSON.stringify({ error: 'Missing roundId' }), { status: 400 })
     }
 
+    console.log(`📊 API: Settling bets for round ${roundId}...`)
     try {
       // Settle bets for this specific round
       const pendingBets = db.query(`
@@ -664,11 +665,12 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         }
       }
 
+      console.log(`✓ API: Settled ${pendingBets.length} bets for round ${roundId}`)
       return new Response(JSON.stringify({ ok: true }), {
         headers: { 'Content-Type': 'application/json' }
       })
     } catch (error) {
-      console.error('Error settling bets:', error)
+      console.error('❌ API: Error settling bets:', error)
       return new Response(JSON.stringify({ error: 'Failed to settle bets' }), { status: 500 })
     }
   },
@@ -685,13 +687,15 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       return new Response(JSON.stringify({ error: 'Missing roundId' }), { status: 400 })
     }
 
+    console.log(`🏆 API: Awarding placement points for round ${roundId}...`)
     try {
       awardPlacementPoints(roundId)
+      console.log(`✓ API: Placement points awarded for round ${roundId}`)
       return new Response(JSON.stringify({ ok: true }), {
         headers: { 'Content-Type': 'application/json' }
       })
     } catch (error) {
-      console.error('Error awarding placement points:', error)
+      console.error('❌ API: Error awarding placement points:', error)
       return new Response(JSON.stringify({ error: 'Failed to award placement points' }), { status: 500 })
     }
   },

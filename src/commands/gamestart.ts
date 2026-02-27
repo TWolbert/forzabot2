@@ -296,16 +296,29 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
       // Settle bets and award placement points via API
       try {
         const port = process.env.DASHBOARD_PORT || '34234'
-        await fetch(`http://localhost:${port}/api/bets/settle/${round.id}`, {
+        console.log(`🎯 Settling bets for round ${round.id}...`)
+        const settleRes = await fetch(`http://localhost:${port}/api/bets/settle/${round.id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         })
-        await fetch(`http://localhost:${port}/api/bets/award-placement/${round.id}`, {
+        if (!settleRes.ok) {
+          console.error(`❌ Bet settlement failed: ${settleRes.status} ${settleRes.statusText}`)
+        } else {
+          console.log(`✓ Bets settled for round ${round.id}`)
+        }
+        
+        console.log(`🏆 Awarding placement points for round ${round.id}...`)
+        const awardRes = await fetch(`http://localhost:${port}/api/bets/award-placement/${round.id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         })
+        if (!awardRes.ok) {
+          console.error(`❌ Placement award failed: ${awardRes.status} ${awardRes.statusText}`)
+        } else {
+          console.log(`✓ Placement points awarded for round ${round.id}`)
+        }
       } catch (error) {
-        console.error(`Error settling bets and awarding points:`, error)
+        console.error(`❌ Error settling bets and awarding points:`, error)
       }
     }
 
@@ -457,16 +470,29 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
       // Settle bets and award placement points via API
       try {
         const port = process.env.DASHBOARD_PORT || '34234'
-        await fetch(`http://localhost:${port}/api/bets/settle/${round.id}`, {
+        console.log(`🎯 Settling bets for round ${round.id}...`)
+        const settleRes = await fetch(`http://localhost:${port}/api/bets/settle/${round.id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         })
-        await fetch(`http://localhost:${port}/api/bets/award-placement/${round.id}`, {
+        if (!settleRes.ok) {
+          console.error(`❌ Bet settlement failed: ${settleRes.status} ${settleRes.statusText}`)
+        } else {
+          console.log(`✓ Bets settled for round ${round.id}`)
+        }
+        
+        console.log(`🏆 Awarding placement points for round ${round.id}...`)
+        const awardRes = await fetch(`http://localhost:${port}/api/bets/award-placement/${round.id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         })
+        if (!awardRes.ok) {
+          console.error(`❌ Placement award failed: ${awardRes.status} ${awardRes.statusText}`)
+        } else {
+          console.log(`✓ Placement points awarded for round ${round.id}`)
+        }
       } catch (error) {
-        console.error(`Error settling bets and awarding points:`, error)
+        console.error(`❌ Error settling bets and awarding points:`, error)
       }
 
       // Get winner's car
