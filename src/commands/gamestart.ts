@@ -467,6 +467,20 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
       const finishStmt = db.prepare("UPDATE rounds SET status = 'finished', winner_id = ? WHERE id = ?");
       finishStmt.run(winnerId, round.id);
 
+      // Persist final scores for non-all races so placement awards can resolve winner
+      const initScoreStmt = db.prepare(
+        "INSERT OR IGNORE INTO round_scores (round_id, player_id, points) VALUES (?, ?, 0)"
+      );
+      for (const player of roundPlayers) {
+        initScoreStmt.run(round.id, player.id);
+      }
+
+      const winnerScoreStmt = db.prepare(
+        "INSERT INTO round_scores (round_id, player_id, points) VALUES (?, ?, ?) ON CONFLICT(round_id, player_id) DO UPDATE SET points = excluded.points"
+      );
+      winnerScoreStmt.run(round.id, winnerId, 1);
+      console.log(`📊 Persisted non-all race winner score for round ${round.id}: ${winnerId} -> 1 point`)
+
       // Settle bets and award placement points via API
       try {
         const port = process.env.DASHBOARD_PORT || '34234'

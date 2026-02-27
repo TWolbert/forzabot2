@@ -175,8 +175,9 @@ function awardPlacementPoints(roundId: string) {
     `).get(winnerPlayerId) as { web_user_id: string } | null
 
     if (winnerUser) {
+      const winnerWebUser = db.query('SELECT username FROM web_users WHERE id = ?').get(winnerUser.web_user_id) as { username: string } | null
       awardStmt.run(50, winnerUser.web_user_id)
-      console.log(`✓ Awarded 50 points to web user ${winnerUser.web_user_id} for 1st place (Discord ID: ${winnerPlayerId}, race type: ${round.race_type})`)
+      console.log(`✓ Awarded 50 points to web user ${winnerUser.web_user_id} (${winnerWebUser?.username ?? 'unknown username'}) for 1st place (Discord ID: ${winnerPlayerId}, race type: ${round.race_type})`)
     } else {
       console.log(`⚠ No linked web account found for 1st place winner (Discord ID: ${winnerPlayerId}) - no points awarded`)
     }
@@ -191,8 +192,9 @@ function awardPlacementPoints(roundId: string) {
       `).get(secondPlayerId) as { web_user_id: string } | null
 
       if (secondUser) {
+        const secondWebUser = db.query('SELECT username FROM web_users WHERE id = ?').get(secondUser.web_user_id) as { username: string } | null
         awardStmt.run(25, secondUser.web_user_id)
-        console.log(`✓ Awarded 25 points to web user ${secondUser.web_user_id} for 2nd place (Discord ID: ${secondPlayerId})`)
+        console.log(`✓ Awarded 25 points to web user ${secondUser.web_user_id} (${secondWebUser?.username ?? 'unknown username'}) for 2nd place (Discord ID: ${secondPlayerId})`)
       } else {
         console.log(`⚠ No linked web account found for 2nd place (Discord ID: ${secondPlayerId}) - no points awarded`)
       }
