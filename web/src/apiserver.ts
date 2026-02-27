@@ -720,10 +720,13 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         wu.id,
         wu.username,
         wu.points,
+        da.avatar_url,
         COUNT(b.id) as total_bets,
         SUM(CASE WHEN b.status = 'won' THEN 1 ELSE 0 END) as won_bets
       FROM web_users wu
       LEFT JOIN bets b ON b.user_id = wu.id
+      LEFT JOIN web_users_discord wud ON wud.web_user_id = wu.id
+      LEFT JOIN discord_avatars da ON da.player_id = wud.discord_user_id
       GROUP BY wu.id
       ORDER BY wu.points DESC, wu.username ASC
       LIMIT 50

@@ -6,6 +6,7 @@ interface LeaderboardEntry {
   id: string
   username: string
   points: number
+  avatar_url?: string | null
   total_bets: number
   won_bets: number
 }
@@ -32,6 +33,7 @@ export function Leaderboard() {
   const medals = ['🥇', '🥈', '🥉']
   const topThree = data.slice(0, 3)
   const rest = data.slice(3)
+  const initialsFor = (username: string) => (username || '?').slice(0, 1).toUpperCase()
 
   return (
     <div className="bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 rounded-2xl shadow-2xl p-8 border-2 border-green-500">
@@ -70,7 +72,17 @@ export function Leaderboard() {
                     <span className="text-xs font-black uppercase text-green-300">Rank {index + 1}</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full border-2 border-green-400/50 bg-gray-800"></div>
+                    <div className="w-14 h-14 rounded-full border-2 border-green-400/50 bg-gray-800 overflow-hidden flex items-center justify-center">
+                      {player.avatar_url ? (
+                        <img
+                          src={player.avatar_url}
+                          alt={`${player.username} avatar`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-green-300 font-black text-lg">{initialsFor(player.username)}</span>
+                      )}
+                    </div>
                     <div>
                       <p className="text-2xl font-black text-white">{player.username}</p>
                       <p className="text-xs text-gray-400 font-bold mt-1">Bets Won: {player.won_bets}</p>
@@ -93,7 +105,17 @@ export function Leaderboard() {
                   className="flex items-center gap-4 bg-gray-900/70 border border-gray-800 rounded-xl px-4 py-3 hover:bg-gray-800 transition"
                 >
                   <div className="text-lg font-black text-gray-400 w-10 text-right">{index + 4}.</div>
-                  <div className="w-10 h-10 rounded-full border-2 border-green-400/50 bg-gray-800"></div>
+                  <div className="w-10 h-10 rounded-full border-2 border-green-400/50 bg-gray-800 overflow-hidden flex items-center justify-center">
+                    {player.avatar_url ? (
+                      <img
+                        src={player.avatar_url}
+                        alt={`${player.username} avatar`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-green-300 font-black text-sm">{initialsFor(player.username)}</span>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-black text-white truncate">
                       {player.username}
