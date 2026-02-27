@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { getLeaderboard } from '../api'
 import { Loader } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 interface LeaderboardEntry {
   id: string
   username: string
   points: number
+  linked_player_id?: string | null
   avatar_url?: string | null
   total_bets: number
   won_bets: number
@@ -61,18 +63,90 @@ export function Leaderboard() {
         <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
             {topThree.map((player, index) => (
-              <div
-                key={player.id}
-                className="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-green-500/40 rounded-2xl p-6 shadow-lg relative overflow-hidden"
-              >
-                <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(16, 185, 129, 0.6) 0%, transparent 50%)'}}></div>
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-6">
-                    <span className="text-4xl">{medals[index]}</span>
-                    <span className="text-xs font-black uppercase text-green-300">Rank {index + 1}</span>
+              player.linked_player_id ? (
+                <Link
+                  key={player.id}
+                  to={`/players/${player.linked_player_id}`}
+                  className="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-green-500/40 rounded-2xl p-6 shadow-lg relative overflow-hidden hover:border-green-300 transition block"
+                >
+                  <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(16, 185, 129, 0.6) 0%, transparent 50%)'}}></div>
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-6">
+                      <span className="text-4xl">{medals[index]}</span>
+                      <span className="text-xs font-black uppercase text-green-300">Rank {index + 1}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-full border-2 border-green-400/50 bg-gray-800 overflow-hidden flex items-center justify-center">
+                        {player.avatar_url ? (
+                          <img
+                            src={player.avatar_url}
+                            alt={`${player.username} avatar`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-green-300 font-black text-lg">{initialsFor(player.username)}</span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-2xl font-black text-white">{player.username}</p>
+                        <p className="text-xs text-gray-400 font-bold mt-1">Bets Won: {player.won_bets}</p>
+                      </div>
+                    </div>
+                    <div className="mt-6 flex items-end justify-between">
+                      <span className="text-4xl font-black text-green-300 drop-shadow-lg">{player.points}</span>
+                      <span className="text-xs font-black uppercase text-green-300/70">Points</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full border-2 border-green-400/50 bg-gray-800 overflow-hidden flex items-center justify-center">
+                </Link>
+              ) : (
+                <div
+                  key={player.id}
+                  className="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-green-500/40 rounded-2xl p-6 shadow-lg relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(16, 185, 129, 0.6) 0%, transparent 50%)'}}></div>
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-6">
+                      <span className="text-4xl">{medals[index]}</span>
+                      <span className="text-xs font-black uppercase text-green-300">Rank {index + 1}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-full border-2 border-green-400/50 bg-gray-800 overflow-hidden flex items-center justify-center">
+                        {player.avatar_url ? (
+                          <img
+                            src={player.avatar_url}
+                            alt={`${player.username} avatar`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-green-300 font-black text-lg">{initialsFor(player.username)}</span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-2xl font-black text-white">{player.username}</p>
+                        <p className="text-xs text-gray-400 font-bold mt-1">Bets Won: {player.won_bets}</p>
+                      </div>
+                    </div>
+                    <div className="mt-6 flex items-end justify-between">
+                      <span className="text-4xl font-black text-green-300 drop-shadow-lg">{player.points}</span>
+                      <span className="text-xs font-black uppercase text-green-300/70">Points</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            ))}
+          </div>
+
+          {rest.length > 0 && (
+            <div className="space-y-3">
+              {rest.map((player, index) => (
+                player.linked_player_id ? (
+                  <Link
+                    key={player.id}
+                    to={`/players/${player.linked_player_id}`}
+                    className="flex items-center gap-4 bg-gray-900/70 border border-gray-800 rounded-xl px-4 py-3 hover:bg-gray-800 transition"
+                  >
+                    <div className="text-lg font-black text-gray-400 w-10 text-right">{index + 4}.</div>
+                    <div className="w-10 h-10 rounded-full border-2 border-green-400/50 bg-gray-800 overflow-hidden flex items-center justify-center">
                       {player.avatar_url ? (
                         <img
                           src={player.avatar_url}
@@ -80,53 +154,49 @@ export function Leaderboard() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-green-300 font-black text-lg">{initialsFor(player.username)}</span>
+                        <span className="text-green-300 font-black text-sm">{initialsFor(player.username)}</span>
                       )}
                     </div>
-                    <div>
-                      <p className="text-2xl font-black text-white">{player.username}</p>
-                      <p className="text-xs text-gray-400 font-bold mt-1">Bets Won: {player.won_bets}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-black text-white truncate">
+                        {player.username}
+                      </div>
+                      <div className="text-xs text-gray-400 font-bold">Bets: {player.total_bets}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-black text-green-300">{player.points}</div>
+                      <div className="text-xs text-gray-400 font-bold uppercase">Points</div>
+                    </div>
+                  </Link>
+                ) : (
+                  <div
+                    key={player.id}
+                    className="flex items-center gap-4 bg-gray-900/70 border border-gray-800 rounded-xl px-4 py-3"
+                  >
+                    <div className="text-lg font-black text-gray-400 w-10 text-right">{index + 4}.</div>
+                    <div className="w-10 h-10 rounded-full border-2 border-green-400/50 bg-gray-800 overflow-hidden flex items-center justify-center">
+                      {player.avatar_url ? (
+                        <img
+                          src={player.avatar_url}
+                          alt={`${player.username} avatar`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-green-300 font-black text-sm">{initialsFor(player.username)}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-black text-white truncate">
+                        {player.username}
+                      </div>
+                      <div className="text-xs text-gray-400 font-bold">Bets: {player.total_bets}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-black text-green-300">{player.points}</div>
+                      <div className="text-xs text-gray-400 font-bold uppercase">Points</div>
                     </div>
                   </div>
-                  <div className="mt-6 flex items-end justify-between">
-                    <span className="text-4xl font-black text-green-300 drop-shadow-lg">{player.points}</span>
-                    <span className="text-xs font-black uppercase text-green-300/70">Points</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {rest.length > 0 && (
-            <div className="space-y-3">
-              {rest.map((player, index) => (
-                <div
-                  key={player.id}
-                  className="flex items-center gap-4 bg-gray-900/70 border border-gray-800 rounded-xl px-4 py-3 hover:bg-gray-800 transition"
-                >
-                  <div className="text-lg font-black text-gray-400 w-10 text-right">{index + 4}.</div>
-                  <div className="w-10 h-10 rounded-full border-2 border-green-400/50 bg-gray-800 overflow-hidden flex items-center justify-center">
-                    {player.avatar_url ? (
-                      <img
-                        src={player.avatar_url}
-                        alt={`${player.username} avatar`}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-green-300 font-black text-sm">{initialsFor(player.username)}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-black text-white truncate">
-                      {player.username}
-                    </div>
-                    <div className="text-xs text-gray-400 font-bold">Bets: {player.total_bets}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-black text-green-300">{player.points}</div>
-                    <div className="text-xs text-gray-400 font-bold uppercase">Points</div>
-                  </div>
-                </div>
+                )
               ))}
             </div>
           )}

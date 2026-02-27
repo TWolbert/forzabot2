@@ -720,6 +720,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         wu.id,
         wu.username,
         wu.points,
+        wud.discord_user_id as linked_player_id,
         da.avatar_url,
         COUNT(b.id) as total_bets,
         SUM(CASE WHEN b.status = 'won' THEN 1 ELSE 0 END) as won_bets
