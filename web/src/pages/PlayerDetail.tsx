@@ -7,6 +7,7 @@ interface Player {
   id: string
   username: string
   display_name: string
+  avatar_url?: string | null
 }
 
 interface Stats {
@@ -401,10 +402,27 @@ export function PlayerDetail() {
         </Link>
 
         <div className="mb-6">
-          <h1 className="text-5xl font-black text-green-400 mb-2 drop-shadow-lg">
-            {player.display_name}
-          </h1>
-          <p className="text-gray-400 font-bold">@{player.username}</p>
+          <div className="flex items-center gap-4 mb-2">
+            <div className="w-16 h-16 rounded-full border-2 border-green-500/70 bg-gray-800 overflow-hidden flex items-center justify-center">
+              {player.avatar_url ? (
+                <img
+                  src={player.avatar_url}
+                  alt={`${player.display_name} avatar`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-green-300 font-black text-2xl">
+                  {(player.display_name || '?').slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div>
+              <h1 className="text-5xl font-black text-green-400 mb-1 drop-shadow-lg">
+                {player.display_name}
+              </h1>
+              <p className="text-gray-400 font-bold">@{player.username}</p>
+            </div>
+          </div>
         </div>
 
         {/* Stats Grid */}

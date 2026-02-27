@@ -758,7 +758,13 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     const url = new URL(req.url)
     const playerId = url.pathname.split('/')[3]
 
-    const player = db.query('SELECT * FROM players WHERE id = ?').get(playerId)
+    const player = db.query(`
+      SELECT p.*, da.avatar_url
+      FROM players p
+      LEFT JOIN discord_avatars da ON da.player_id = p.id
+      WHERE p.id = ?
+      LIMIT 1
+    `).get(playerId)
     if (!player) {
       return new Response(JSON.stringify({ error: 'Player not found' }), { status: 404 })
     }
