@@ -7,6 +7,7 @@ export interface CarData {
   name: string;
   value: number;
   pi?: string;
+  year?: number;
 }
 
 let cachedCarNames: string[] | null = null;
@@ -120,7 +121,12 @@ export const loadCarData = async (): Promise<CarData[]> => {
       const valueStr = fields[valueIndex];
       const value = valueStr ? parseInt(valueStr.replace(/[^0-9]/g, ""), 10) : 0;
       const pi = piIndex !== -1 ? fields[piIndex]?.trim() : undefined;
-      return { name, value, pi };
+      
+      // Extract year from car name (e.g., "Abarth 124 Spider 2017" -> 2017)
+      const yearMatch = name?.match(/(\d{4})$/);
+      const year = yearMatch ? parseInt(yearMatch[1], 10) : undefined;
+      
+      return { name, value, pi, year };
     })
     .filter((entry): entry is CarData => Boolean(entry.name) && !isNaN(entry.value));
 

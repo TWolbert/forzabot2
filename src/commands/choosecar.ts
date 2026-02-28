@@ -13,8 +13,8 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
 
   // Get the most recent pending or active round
   const round = db.query(
-    "SELECT id, value FROM rounds WHERE status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1"
-  ).get() as { id: string; value: number } | null;
+    "SELECT id, value, year FROM rounds WHERE status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1"
+  ).get() as { id: string; value: number; year?: number | null } | null;
 
   const maxValue = round?.value;
   
@@ -25,17 +25,29 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       return;
     }
 
-    // Load all cars and filter by budget
+    // Load all cars and filter by budget and year
     const allCars = await loadCarData();
     const validCars = allCars
       .filter(car => !maxValue || car.value <= maxValue)
+      .filter(car => {
+        // If round has a year, filter to year ± 5
+        if (round?.year) {
+          if (!car.year) return false; // Exclude cars without year data
+          return car.year >= round.year - 5 && car.year <= round.year + 5;
+        }
+        return true;
+      })
       .map(car => car.name);
 
     if (validCars.length === 0) {
+      const constraints = [];
+      if (maxValue) constraints.push(`$${maxValue.toLocaleString("en-US")} budget`);
+      if (round?.year) constraints.push(`years ${round.year - 5}-${round.year + 5}`);
+      const description = `No cars found within ${constraints.join(" and ")}${constraints.length > 0 ? "." : "budget."}`;
       await interaction.reply({ 
         embeds: [new EmbedBuilder()
           .setTitle("No cars available")
-          .setDescription(`No cars found within ${maxValue ? `$${maxValue.toLocaleString("en-US")}` : "budget"} budget.`)
+          .setDescription(description)
         ], 
         ephemeral: true 
       });

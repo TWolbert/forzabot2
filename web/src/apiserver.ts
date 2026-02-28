@@ -112,7 +112,7 @@ function settleFinishedBets() {
     SELECT b.id, b.user_id, b.predicted_player_id, b.points_wagered, r.winner_id
     FROM bets b
     JOIN rounds r ON r.id = b.round_id
-    WHERE b.status = 'pending'
+    WHERE b.status = 'locked'
       AND r.status = 'finished'
       AND r.winner_id IS NOT NULL
   `).all() as Array<{
@@ -662,7 +662,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         SELECT b.id, b.user_id, b.predicted_player_id, b.points_wagered, r.winner_id
         FROM bets b
         JOIN rounds r ON r.id = b.round_id
-        WHERE b.status = 'pending'
+        WHERE b.status = 'locked'
           AND r.status = 'finished'
           AND r.winner_id IS NOT NULL
           AND r.id = ?
