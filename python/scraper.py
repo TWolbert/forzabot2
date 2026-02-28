@@ -87,6 +87,32 @@ def maybe_expand_acquisition(header: str, value: str) -> str:
     return value
 
 
+def extract_availability_from_name(vehicle_name: str) -> tuple[str, str]:
+    """
+    Extract availability info from vehicle name and return (cleaned_name, availability).
+    
+    The availability information is embedded in metadata markers within the name.
+    Returns a tuple of (cleaned_vehicle_name, availability_info).
+    """
+    text = clean_text(vehicle_name)
+    availability_found = []
+    
+    lower_text = text.lower()
+    for marker in METADATA_MARKERS:
+        if marker in lower_text:
+            availability_found.append(marker)
+    
+    # Clean the name to remove metadata
+    cleaned = clean_vehicle_name(vehicle_name)
+    
+    return cleaned, " / ".join(availability_found) if availability_found else ""
+
+
+def has_autoshow_availability(availability: str) -> bool:
+    """Check if a car is available through autoshow (alone or with other methods)."""
+    return "autoshow" in availability.lower()
+
+
 def parse_tables(html: str) -> List[Dict[str, str]]:
     soup = BeautifulSoup(html, "lxml")
     tables = soup.find_all("table")
@@ -125,12 +151,15 @@ def parse_tables(html: str) -> List[Dict[str, str]]:
                 filtered_cells = filtered_cells[: len(filtered_headers)]
 
             row_dict: Dict[str, str] = {}
+            vehicle_availability = ""
 
             for header, value in zip(filtered_headers, filtered_cells):
                 val = value
 
                 if header.lower() in ("vehicle", "car"):
-                    val = clean_vehicle_name(val)
+                    # Extract availability info from the vehicle name BEFORE cleaning
+                    cleaned_vehicle, vehicle_availability = extract_availability_from_name(val)
+                    val = cleaned_vehicle
 
                 # Clean price-like values only if they contain CR
                 if "cr" in value.lower():
@@ -141,7 +170,16 @@ def parse_tables(html: str) -> List[Dict[str, str]]:
 
                 row_dict[header] = val
 
+            # Filter to only include cars available through autoshow
+            if not has_autoshow_availability(vehicle_availability):
+                continue
+
             row_dict["_table_index"] = str(table_idx)
+            
+            # Add availability information as a separate column
+            if vehicle_availability:
+                row_dict["Availability"] = vehicle_availability
+            
             all_rows.append(row_dict)
 
     return all_rows
@@ -151,10 +189,22 @@ def write_csv(rows: List[Dict[str, str]], output_path: Path) -> None:
     if not rows:
         raise ValueError("No data extracted from HTML tables.")
 
-    headers = sorted({k for r in rows for k in r.keys()})
+    # Collect all unique headers from the data
+    all_headers = {k for r in rows for k in r.keys()}
+    
+    # Define the preferred column order to match original format
+    preferred_order = [
+        "Ac", "Br", "Cars", "Ha", "Highest PI", "La", "Of", "PI", "Sp", "Value", 
+        "Vehicle", "_table_index", "▼Car Lists", "🌍", "📅", "🔓", "🦄", "Availability"
+    ]
+    
+    # Preserve preferred order for columns that should be first, then add any remaining
+    ordered_headers = [h for h in preferred_order if h in all_headers]
+    remaining_headers = sorted(all_headers - set(ordered_headers))
+    final_headers = ordered_headers + remaining_headers
 
     with output_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=headers)
+        writer = csv.DictWriter(f, fieldnames=final_headers)
         writer.writeheader()
         writer.writerows(rows)
 

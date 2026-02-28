@@ -28,6 +28,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     // Load all cars and filter by budget and year
     const allCars = await loadCarData();
     const validCars = allCars
+      .filter(car => car.availability?.includes("autoshow"))
       .filter(car => !maxValue || car.value <= maxValue)
       .filter(car => {
         // If round has a year, filter to year ± 5

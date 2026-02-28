@@ -8,6 +8,7 @@ export interface CarData {
   value: number;
   pi?: string;
   year?: number;
+  availability?: string;
 }
 
 let cachedCarNames: string[] | null = null;
@@ -107,6 +108,7 @@ export const loadCarData = async (): Promise<CarData[]> => {
   const vehicleIndex = headers.indexOf("Vehicle");
   const valueIndex = headers.indexOf("Value");
   const piIndex = headers.indexOf("PI");
+  const availabilityIndex = headers.indexOf("Availability");
 
   if (vehicleIndex === -1 || valueIndex === -1) {
     cachedCarData = [];
@@ -115,20 +117,25 @@ export const loadCarData = async (): Promise<CarData[]> => {
 
   const data = lines
     .slice(1)
-    .map((line) => {
+    .map((line): CarData | null => {
       const fields = parseCsvLine(line);
-      const name = fields[vehicleIndex];
+      const name = fields[vehicleIndex]?.trim();
+      if (!name) return null;
+
       const valueStr = fields[valueIndex];
       const value = valueStr ? parseInt(valueStr.replace(/[^0-9]/g, ""), 10) : 0;
+      if (isNaN(value)) return null;
+
       const pi = piIndex !== -1 ? fields[piIndex]?.trim() : undefined;
+      const availability = availabilityIndex !== -1 ? fields[availabilityIndex]?.trim() : undefined;
       
       // Extract year from car name (e.g., "Abarth 124 Spider 2017" -> 2017)
-      const yearMatch = name?.match(/(\d{4})$/);
-      const year = yearMatch ? parseInt(yearMatch[1], 10) : undefined;
+      const yearMatch = name.match(/(\d{4})$/);
+      const year = yearMatch ? parseInt(yearMatch[1]!, 10) : undefined;
       
-      return { name, value, pi, year };
+      return { name, value, pi, year, availability };
     })
-    .filter((entry): entry is CarData => Boolean(entry.name) && !isNaN(entry.value));
+    .filter((entry): entry is CarData => entry !== null);
 
   cachedCarData = data;
   return data;
