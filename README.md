@@ -60,11 +60,14 @@ Create a new Forza round.
   - `player3-8` (optional): Additional players (up to 8 total)
   - `race_type` (optional): Choose from rally, goliath, circuit, drag, offroad, all
   - `year` (optional, integer): Restrict to a specific model year
+  - `brand` (optional, string): Restrict round cars to a brand (e.g. `Audi`, `Aston Martin`)
   - `restrict_class` (optional, boolean): Enforce specific car class restrictions (default: false)
 - **Features**:
   - Generates unique Round ID
   - Stores round in database
   - Automatically deduplicates players
+  - With `brand`: `/choosecar` search + random only return that brand
+  - With `brand`: min budget is cheapest brand car + 50k, max budget is brand's most expensive car
   - Without `restrict_class`: Full 50K-500K value range
   - With `restrict_class`: Class-specific value ranges
 - **Example**: `/startround player1: @User1 player2: @User2 race_type: circuit restrict_class: true`

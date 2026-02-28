@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from "discord.js";
-import { searchCars, getTopCarImage, loadCarData } from "../utils";
+import { searchCars, getTopCarImage, loadCarData, matchesBrandName } from "../utils";
 import { db } from "../database";
 
 export async function handleChooseCar(interaction: ChatInputCommandInteraction) {
@@ -13,8 +13,8 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
 
   // Get the most recent pending or active round
   const round = db.query(
-    "SELECT id, value, year FROM rounds WHERE status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1"
-  ).get() as { id: string; value: number; year?: number | null } | null;
+    "SELECT id, value, year, brand FROM rounds WHERE status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1"
+  ).get() as { id: string; value: number; year?: number | null; brand?: string | null } | null;
 
   const maxValue = round?.value;
   
@@ -30,6 +30,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     const validCars = allCars
       .filter(car => car.availability?.includes("autoshow"))
       .filter(car => !maxValue || car.value <= maxValue)
+      .filter(car => !round?.brand || matchesBrandName(car.name, round.brand))
       .filter(car => {
         // If round has a year, filter to year ± 5
         if (round?.year) {
@@ -44,6 +45,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       const constraints = [];
       if (maxValue) constraints.push(`$${maxValue.toLocaleString("en-US")} budget`);
       if (round?.year) constraints.push(`years ${round.year - 5}-${round.year + 5}`);
+      if (round?.brand) constraints.push(`brand ${round.brand}`);
       const description = `No cars found within ${constraints.join(" and ")}${constraints.length > 0 ? "." : "budget."}`;
       await interaction.reply({ 
         embeds: [new EmbedBuilder()
@@ -93,21 +95,27 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
 
   const results = await searchCars(query!, maxValue);
 
-  if (results.length === 0) {
+  // Load car data for details and round-specific filtering
+  const allCarData = await loadCarData();
+  const carDataMap = new Map(allCarData.map(car => [car.name, car]));
+
+  const filteredResults = results.filter((carName) => {
+    if (!round?.brand) return true;
+    return matchesBrandName(carName, round.brand);
+  });
+
+  if (filteredResults.length === 0) {
+    const brandSuffix = round?.brand ? ` for brand "${round.brand}"` : "";
     const emptyEmbed = new EmbedBuilder()
       .setTitle("No cars found")
       .setDescription(
         maxValue 
-          ? `No cars found for "${query}" within $${maxValue.toLocaleString("en-US")} budget.`
-          : `No cars found for "${query}".`
+          ? `No cars found for "${query}"${brandSuffix} within $${maxValue.toLocaleString("en-US")} budget.`
+          : `No cars found for "${query}"${brandSuffix}.`
       );
     await interaction.reply({ embeds: [emptyEmbed], ephemeral: true });
     return;
   }
-
-  // Load car data for details
-  const allCarData = await loadCarData();
-  const carDataMap = new Map(allCarData.map(car => [car.name, car]));
 
   let currentIndex = 0;
 
@@ -115,7 +123,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     `$${value.toLocaleString("en-US")}`;
 
   const createCarEmbed = async (index: number) => {
-    const carName = results[index];
+    const carName = filteredResults[index];
     if (!carName) return new EmbedBuilder().setTitle("Error").setDescription("Car not found");
     
     const carData = carDataMap.get(carName);
@@ -126,8 +134,8 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       .setTitle(carName)
       .setDescription(
         maxValue
-          ? `Car ${index + 1} of ${results.length} (Max: ${formatCurrency(maxValue)})`
-          : `Car ${index + 1} of ${results.length}`
+          ? `Car ${index + 1} of ${filteredResults.length} (Max: ${formatCurrency(maxValue)})`
+          : `Car ${index + 1} of ${filteredResults.length}`
       )
       .addFields([
         { name: "Performance Index", value: carData?.pi || "N/A", inline: true },
@@ -161,7 +169,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
         .setCustomId("car_next")
         .setLabel("▶")
         .setStyle(ButtonStyle.Secondary)
-        .setDisabled(index >= results.length - 1)
+        .setDisabled(index >= filteredResults.length - 1)
     );
   };
 
@@ -185,7 +193,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     }
 
     if (i.customId === "car_next") {
-      currentIndex = Math.min(currentIndex + 1, results.length - 1);
+      currentIndex = Math.min(currentIndex + 1, filteredResults.length - 1);
       const newEmbed = await createCarEmbed(currentIndex);
       const newRow = createButtons(currentIndex);
       await i.update({ embeds: [newEmbed], components: [newRow] });
@@ -195,7 +203,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       const newRow = createButtons(currentIndex);
       await i.update({ embeds: [newEmbed], components: [newRow] });
     } else if (i.customId === "car_accept") {
-      const selectedCar = results[currentIndex];
+      const selectedCar = filteredResults[currentIndex];
       if (!selectedCar) {
         await i.reply({ content: "Error: Car not found", ephemeral: true });
         return;

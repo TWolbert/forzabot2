@@ -86,6 +86,12 @@ const commands = [
         required: false,
       },
       {
+        name: "brand",
+        description: "Restrict to a brand (e.g. Aston Martin, Audi)",
+        type: 3,
+        required: false,
+      },
+      {
         name: "player3",
         description: "Player 3",
         type: 6,

@@ -55,6 +55,14 @@ export const normalizeSearchText = (value: string): string =>
     .trim()
     .replace(/\s+/g, " ");
 
+export const matchesBrandName = (carName: string, brand: string): boolean => {
+  const normalizedCarName = normalizeSearchText(carName);
+  const normalizedBrand = normalizeSearchText(brand);
+
+  if (!normalizedBrand) return true;
+  return normalizedCarName === normalizedBrand || normalizedCarName.startsWith(`${normalizedBrand} `);
+};
+
 export const parseCsvLine = (line: string): string[] => {
   const fields: string[] = [];
   let current = "";

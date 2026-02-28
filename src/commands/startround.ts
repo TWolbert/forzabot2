@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ChatInputCommandInteraction, EmbedBuilder } from "discord.js";
 import path from "node:path";
-import { pickRandom, randomIntStep, formatCurrency, getRaceIconPath } from "../utils";
+import { pickRandom, randomIntStep, formatCurrency, getRaceIconPath, loadCarData, matchesBrandName } from "../utils";
 import { CAR_CLASSES, RACE_TYPES, CLASS_VALUE_RANGES, CLASS_COLORS } from "../constants";
 import { db } from "../database";
 
@@ -12,7 +12,41 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
   const chosenRaceType = interaction.options.getString("race_type");
   const raceType = chosenRaceType ?? pickRandom(RACE_TYPES);
   const year = interaction.options.getInteger("year");
-  const [minValue, maxValue] = restrictClass ? CLASS_VALUE_RANGES[carClass] : [50_000, 500_000];
+  const brand = interaction.options.getString("brand")?.trim();
+  let [minValue, maxValue] = restrictClass ? CLASS_VALUE_RANGES[carClass] : [50_000, 500_000];
+
+  if (brand) {
+    const allCars = await loadCarData();
+    const brandCars = allCars.filter((car) => matchesBrandName(car.name, brand));
+
+    if (brandCars.length === 0) {
+      await interaction.reply({
+        content: `No cars found for brand \"${brand}\".`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const prices = brandCars.map((car) => car.value).filter((value) => value > 0);
+    if (prices.length === 0) {
+      await interaction.reply({
+        content: `No priced cars found for brand \"${brand}\".`,
+        ephemeral: true,
+      });
+      return;
+    }
+    const cheapest = Math.min(...prices);
+    const mostExpensive = Math.max(...prices);
+    const brandMin = Math.min(cheapest + 50_000, mostExpensive);
+
+    minValue = Math.max(minValue, brandMin);
+    maxValue = mostExpensive;
+
+    if (minValue > maxValue) {
+      minValue = maxValue;
+    }
+  }
+
   const value = randomIntStep(minValue, maxValue, 25_000);
 
   // Collect players and ensure uniqueness
@@ -28,13 +62,14 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
 
   // Save round to database
   const roundStmt = db.prepare(
-    "INSERT INTO rounds (id, class, value, race_type, year, status, restrict_class, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO rounds (id, class, value, race_type, brand, year, status, restrict_class, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
   roundStmt.run(
     roundId,
     carClass,
     value,
     raceType,
+    brand ?? null,
     year,
     "pending",
     restrictClass ? 1 : 0,
@@ -80,6 +115,10 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
     { name: "Value", value: formatCurrency(value), inline: true },
     { name: "Race Type", value: raceType, inline: true }
   );
+
+  if (brand) {
+    embed.addFields({ name: "Brand", value: brand, inline: true });
+  }
 
   if (year) {
     embed.addFields({ name: "Year", value: year.toString(), inline: true });

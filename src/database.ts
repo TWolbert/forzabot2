@@ -9,6 +9,7 @@ export function initializeDatabase() {
       class TEXT NOT NULL,
       value INTEGER NOT NULL,
       race_type TEXT NOT NULL,
+      brand TEXT,
       year INTEGER,
       status TEXT NOT NULL DEFAULT 'pending',
       restrict_class INTEGER NOT NULL DEFAULT 1,
@@ -141,6 +142,13 @@ export function initializeDatabase() {
   // Add restrict_class column to existing rounds table if it doesn't exist
   try {
     db.exec(`ALTER TABLE rounds ADD COLUMN restrict_class INTEGER NOT NULL DEFAULT 1`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  // Add brand column to existing rounds table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE rounds ADD COLUMN brand TEXT`);
   } catch (e) {
     // Column already exists, ignore
   }
