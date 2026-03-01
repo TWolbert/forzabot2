@@ -43,6 +43,8 @@ Choose a car for the current round interactively.
   - Browse cars with ◀ and ▶ buttons
   - Select with ✓ or cancel with ❌
   - Shows car image from Forza Wiki
+  - Random picks are balanced around the first random pick in the round (similar PI class + nearby value)
+  - Random picks always stay at or below 80% of round value (minimum 20% budget kept for upgrades)
   - Must have an active round
 - **Examples**:
   - `/choosecar query: Lamborghini` - Show Lamborghini cars

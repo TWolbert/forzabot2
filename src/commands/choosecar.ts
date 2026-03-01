@@ -2,6 +2,23 @@ import { ChatInputCommandInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuil
 import { searchCars, getTopCarImage, loadCarData, matchesBrandName } from "../utils";
 import { db } from "../database";
 
+type ParsedPi = {
+  classCode: string;
+  score: number;
+};
+
+const parsePi = (pi?: string): ParsedPi | null => {
+  if (!pi) return null;
+  const normalized = pi.toUpperCase().replace(/\s+/g, "");
+  const match = normalized.match(/^([A-Z]\d?)(\d{3})$/);
+  if (!match) return null;
+
+  return {
+    classCode: match[1]!,
+    score: parseInt(match[2]!, 10),
+  };
+};
+
 export async function handleChooseCar(interaction: ChatInputCommandInteraction) {
   const query = interaction.options.getString("query");
   const isRandom = interaction.options.getBoolean("random") ?? false;
@@ -25,11 +42,13 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       return;
     }
 
+    const randomMaxValue = maxValue ? Math.floor(maxValue * 0.8) : undefined;
+
     // Load all cars and filter by budget and year
     const allCars = await loadCarData();
-    const validCars = allCars
+    let validCars = allCars
       .filter(car => car.availability?.includes("autoshow"))
-      .filter(car => !maxValue || car.value <= maxValue)
+      .filter(car => !randomMaxValue || car.value <= randomMaxValue)
       .filter(car => !round?.brand || matchesBrandName(car.name, round.brand))
       .filter(car => {
         // If round has a year, filter to year ± 5
@@ -38,14 +57,67 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
           return car.year >= round.year - 5 && car.year <= round.year + 5;
         }
         return true;
-      })
-      .map(car => car.name);
+      });
+
+    const firstRandomChoice = db.query(
+      "SELECT car_name FROM car_choices WHERE round_id = ? AND selection_method = 'random' ORDER BY chosen_at ASC LIMIT 1"
+    ).get(round.id) as { car_name: string } | null;
+
+    let balancingAnchorCar: typeof validCars[number] | null = null;
+
+    if (firstRandomChoice) {
+      balancingAnchorCar = allCars.find((car) => car.name === firstRandomChoice.car_name) ?? null;
+
+      if (balancingAnchorCar) {
+        const anchorPi = parsePi(balancingAnchorCar.pi);
+        const valueTolerance = Math.max(25_000, Math.round(balancingAnchorCar.value * 0.35));
+        const strictMinValue = Math.max(0, balancingAnchorCar.value - valueTolerance);
+        const strictMaxValue = Math.min(randomMaxValue ?? Number.MAX_SAFE_INTEGER, balancingAnchorCar.value + valueTolerance);
+
+        const strictBalancedCars = validCars.filter((car) => {
+          const withinValueRange = car.value >= strictMinValue && car.value <= strictMaxValue;
+          if (!withinValueRange) return false;
+
+          if (!anchorPi) return true;
+
+          const carPi = parsePi(car.pi);
+          if (!carPi) return false;
+          if (carPi.classCode !== anchorPi.classCode) return false;
+
+          return Math.abs(carPi.score - anchorPi.score) <= 75;
+        });
+
+        if (strictBalancedCars.length > 0) {
+          validCars = strictBalancedCars;
+        } else {
+          const relaxedTolerance = Math.max(50_000, Math.round(balancingAnchorCar.value * 0.6));
+          const relaxedMinValue = Math.max(0, balancingAnchorCar.value - relaxedTolerance);
+          const relaxedMaxValue = Math.min(randomMaxValue ?? Number.MAX_SAFE_INTEGER, balancingAnchorCar.value + relaxedTolerance);
+
+          const relaxedBalancedCars = validCars.filter((car) => {
+            const withinValueRange = car.value >= relaxedMinValue && car.value <= relaxedMaxValue;
+            if (!withinValueRange) return false;
+
+            if (!anchorPi) return true;
+
+            const carPi = parsePi(car.pi);
+            return carPi?.classCode === anchorPi.classCode;
+          });
+
+          if (relaxedBalancedCars.length > 0) {
+            validCars = relaxedBalancedCars;
+          }
+        }
+      }
+    }
 
     if (validCars.length === 0) {
       const constraints = [];
       if (maxValue) constraints.push(`$${maxValue.toLocaleString("en-US")} budget`);
+      if (randomMaxValue) constraints.push(`random cap $${randomMaxValue.toLocaleString("en-US")} (20% upgrade room)`);
       if (round?.year) constraints.push(`years ${round.year - 5}-${round.year + 5}`);
       if (round?.brand) constraints.push(`brand ${round.brand}`);
+      if (balancingAnchorCar) constraints.push(`balance range near ${balancingAnchorCar.name}`);
       const description = `No cars found within ${constraints.join(" and ")}${constraints.length > 0 ? "." : "budget."}`;
       await interaction.reply({ 
         embeds: [new EmbedBuilder()
@@ -58,8 +130,8 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     }
 
     const randomIndex = Math.floor(Math.random() * validCars.length);
-    const selectedCarName = validCars[randomIndex]!;
-    const selectedCarData = allCars.find(c => c.name === selectedCarName);
+    const selectedCarData = validCars[randomIndex]!;
+    const selectedCarName = selectedCarData.name;
 
     // Save car choice to database (override previous selection if any)
     const clearStmt = db.prepare(
@@ -68,9 +140,9 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     clearStmt.run(round.id, interaction.user.id);
 
     const carChoiceStmt = db.prepare(
-      "INSERT INTO car_choices (round_id, player_id, car_name, chosen_at) VALUES (?, ?, ?, ?)"
+      "INSERT INTO car_choices (round_id, player_id, car_name, selection_method, chosen_at) VALUES (?, ?, ?, ?, ?)"
     );
-    carChoiceStmt.run(round.id, interaction.user.id, selectedCarName, Date.now());
+    carChoiceStmt.run(round.id, interaction.user.id, selectedCarName, "random", Date.now());
 
     const remainingBudget = maxValue! - (selectedCarData?.value || 0);
 
@@ -83,6 +155,13 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
         { name: "Car Price", value: `$${(selectedCarData?.value || 0).toLocaleString("en-US")}`, inline: true },
         { name: "Remaining Upgrades", value: `$${remainingBudget.toLocaleString("en-US")}`, inline: true },
       ]);
+
+    if (balancingAnchorCar) {
+      finalEmbed.addFields({
+        name: "Balance Anchor",
+        value: `${balancingAnchorCar.name} (${balancingAnchorCar.pi || "N/A"}, $${balancingAnchorCar.value.toLocaleString("en-US")})`,
+      });
+    }
 
     const imageUrl = await getTopCarImage(selectedCarName);
     if (imageUrl) {
@@ -227,9 +306,9 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       clearStmt.run(recentRound.id, i.user.id);
 
       const carChoiceStmt = db.prepare(
-        "INSERT INTO car_choices (round_id, player_id, car_name, chosen_at) VALUES (?, ?, ?, ?)"
+        "INSERT INTO car_choices (round_id, player_id, car_name, selection_method, chosen_at) VALUES (?, ?, ?, ?, ?)"
       );
-      carChoiceStmt.run(recentRound.id, i.user.id, selectedCar, Date.now());
+      carChoiceStmt.run(recentRound.id, i.user.id, selectedCar, "manual", Date.now());
 
       const carData = carDataMap.get(selectedCar);
       const remainingBudget = recentRound.value - (carData?.value || 0);

@@ -34,6 +34,7 @@ export function initializeDatabase() {
       round_id TEXT NOT NULL,
       player_id TEXT NOT NULL,
       car_name TEXT NOT NULL,
+      selection_method TEXT NOT NULL DEFAULT 'manual',
       chosen_at INTEGER NOT NULL,
       FOREIGN KEY (round_id) REFERENCES rounds (id),
       FOREIGN KEY (player_id) REFERENCES players (id)
@@ -149,6 +150,13 @@ export function initializeDatabase() {
   // Add brand column to existing rounds table if it doesn't exist
   try {
     db.exec(`ALTER TABLE rounds ADD COLUMN brand TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  // Add selection_method column to existing car_choices table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE car_choices ADD COLUMN selection_method TEXT NOT NULL DEFAULT 'manual'`);
   } catch (e) {
     // Column already exists, ignore
   }
