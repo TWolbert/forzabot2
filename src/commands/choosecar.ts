@@ -51,10 +51,10 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       .filter(car => !randomMaxValue || car.value <= randomMaxValue)
       .filter(car => !round?.brand || matchesBrandName(car.name, round.brand))
       .filter(car => {
-        // If round has a year, filter to year ± 5
+        // If round has a year, filter to year ± 10
         if (round?.year) {
           if (!car.year) return false; // Exclude cars without year data
-          return car.year >= round.year - 5 && car.year <= round.year + 5;
+          return car.year >= round.year - 10 && car.year <= round.year + 10;
         }
         return true;
       });
@@ -70,7 +70,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
 
       if (balancingAnchorCar) {
         const anchorPi = parsePi(balancingAnchorCar.pi);
-        const valueTolerance = Math.max(25_000, Math.round(balancingAnchorCar.value * 0.35));
+        const valueTolerance = Math.max(25_000, Math.round(balancingAnchorCar.value * 0.45));
         const strictMinValue = Math.max(0, balancingAnchorCar.value - valueTolerance);
         const strictMaxValue = Math.min(randomMaxValue ?? Number.MAX_SAFE_INTEGER, balancingAnchorCar.value + valueTolerance);
 
@@ -90,7 +90,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
         if (strictBalancedCars.length > 0) {
           validCars = strictBalancedCars;
         } else {
-          const relaxedTolerance = Math.max(50_000, Math.round(balancingAnchorCar.value * 0.6));
+          const relaxedTolerance = Math.max(50_000, Math.round(balancingAnchorCar.value * 0.75));
           const relaxedMinValue = Math.max(0, balancingAnchorCar.value - relaxedTolerance);
           const relaxedMaxValue = Math.min(randomMaxValue ?? Number.MAX_SAFE_INTEGER, balancingAnchorCar.value + relaxedTolerance);
 
@@ -101,7 +101,15 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
             if (!anchorPi) return true;
 
             const carPi = parsePi(car.pi);
-            return carPi?.classCode === anchorPi.classCode;
+            if (!carPi) return false;
+            
+            // Allow same class or adjacent classes (e.g., A -> S1, B, or A; S1 -> S2 or A)
+            const classOrder = ['D', 'C', 'B', 'A', 'S1', 'S2', 'X'];
+            const anchorIdx = classOrder.indexOf(anchorPi.classCode);
+            const carIdx = classOrder.indexOf(carPi.classCode);
+            
+            if (anchorIdx === -1 || carIdx === -1) return carPi.classCode === anchorPi.classCode;
+            return Math.abs(anchorIdx - carIdx) <= 1;
           });
 
           if (relaxedBalancedCars.length > 0) {
@@ -115,7 +123,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       const constraints = [];
       if (maxValue) constraints.push(`$${maxValue.toLocaleString("en-US")} budget`);
       if (randomMaxValue) constraints.push(`random cap $${randomMaxValue.toLocaleString("en-US")} (20% upgrade room)`);
-      if (round?.year) constraints.push(`years ${round.year - 5}-${round.year + 5}`);
+      if (round?.year) constraints.push(`years ${round.year - 10}-${round.year + 10}`);
       if (round?.brand) constraints.push(`brand ${round.brand}`);
       if (balancingAnchorCar) constraints.push(`balance range near ${balancingAnchorCar.name}`);
       const description = `No cars found within ${constraints.join(" and ")}${constraints.length > 0 ? "." : "budget."}`;
