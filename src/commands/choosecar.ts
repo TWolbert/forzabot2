@@ -59,13 +59,35 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
         return true;
       });
 
+    // Get all cars already chosen in this round and exclude them
+    const alreadyChosenCars = db.query(
+      "SELECT DISTINCT car_name FROM car_choices WHERE round_id = ?"
+    ).all(round.id) as { car_name: string }[];
+    const alreadyChosenSet = new Set(alreadyChosenCars.map(c => c.car_name));
+    let carsAfterExcludingChosen = validCars.filter(car => !alreadyChosenSet.has(car.name));
+
+    // If no cars left after excluding already chosen ones, widen balancing
+    let hadToWidenForAvailability = false;
+    if (carsAfterExcludingChosen.length === 0) {
+      hadToWidenForAvailability = true;
+      // Fall back to all cars with just budget and brand constraints
+      carsAfterExcludingChosen = allCars
+        .filter(car => car.availability?.includes("autoshow"))
+        .filter(car => !randomMaxValue || car.value <= randomMaxValue)
+        .filter(car => !round?.brand || matchesBrandName(car.name, round.brand))
+        .filter(car => !alreadyChosenSet.has(car.name));
+    }
+
+    validCars = carsAfterExcludingChosen;
+
     const firstRandomChoice = db.query(
       "SELECT car_name FROM car_choices WHERE round_id = ? AND selection_method = 'random' ORDER BY chosen_at ASC LIMIT 1"
     ).get(round.id) as { car_name: string } | null;
 
     let balancingAnchorCar: typeof validCars[number] | null = null;
 
-    if (firstRandomChoice) {
+    // Only apply strict balancing if we didn't have to widen for availability
+    if (firstRandomChoice && !hadToWidenForAvailability) {
       balancingAnchorCar = allCars.find((car) => car.name === firstRandomChoice.car_name) ?? null;
 
       if (balancingAnchorCar) {
@@ -117,16 +139,37 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
           }
         }
       }
+    } else if (firstRandomChoice && hadToWidenForAvailability) {
+      // If we had to widen availability, apply ultra-relaxed balancing
+      balancingAnchorCar = allCars.find((car) => car.name === firstRandomChoice.car_name) ?? null;
+      
+      if (balancingAnchorCar) {
+        const anchorPi = parsePi(balancingAnchorCar.pi);
+        // Ultra-wide price tolerance when availability was constrained
+        const ultraTolerance = Math.max(100_000, Math.round(balancingAnchorCar.value * 1.0));
+        const ultraMinValue = Math.max(0, balancingAnchorCar.value - ultraTolerance);
+        const ultraMaxValue = Math.min(randomMaxValue ?? Number.MAX_SAFE_INTEGER, balancingAnchorCar.value + ultraTolerance);
+
+        const ultraBalancedCars = validCars.filter((car) => {
+          const withinValueRange = car.value >= ultraMinValue && car.value <= ultraMaxValue;
+          return withinValueRange;
+        });
+
+        if (ultraBalancedCars.length > 0) {
+          validCars = ultraBalancedCars;
+        }
+      }
     }
 
     if (validCars.length === 0) {
       const constraints = [];
       if (maxValue) constraints.push(`$${maxValue.toLocaleString("en-US")} budget`);
       if (randomMaxValue) constraints.push(`random cap $${randomMaxValue.toLocaleString("en-US")} (20% upgrade room)`);
-      if (round?.year) constraints.push(`years ${round.year - 10}-${round.year + 10}`);
+      if (round?.year && !hadToWidenForAvailability) constraints.push(`years ${round.year - 10}-${round.year + 10}`);
       if (round?.brand) constraints.push(`brand ${round.brand}`);
-      if (balancingAnchorCar) constraints.push(`balance range near ${balancingAnchorCar.name}`);
-      const description = `No cars found within ${constraints.join(" and ")}${constraints.length > 0 ? "." : "budget."}`;
+      if (balancingAnchorCar && !hadToWidenForAvailability) constraints.push(`balance range near ${balancingAnchorCar.name}`);
+      const alreadyChosen = alreadyChosenSet.size > 0 ? ` (${alreadyChosenSet.size} cars already chosen)` : "";
+      const description = `No cars found within ${constraints.join(" and ")}${constraints.length > 0 ? "." : "budget."}${alreadyChosen}`;
       await interaction.reply({ 
         embeds: [new EmbedBuilder()
           .setTitle("No cars available")
