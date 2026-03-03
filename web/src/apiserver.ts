@@ -81,65 +81,6 @@ function getBearerToken(req: Request): string | null {
   return token.trim() || null
 }
 
-      '/api/points-history/log/:roundId': (req) => {
-        if (req.method !== 'POST') {
-          return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
-        }
-
-        const url = new URL(req.url)
-        const roundId = url.pathname.split('/')[4]
-
-        if (!roundId) {
-          return new Response(JSON.stringify({ error: 'Missing roundId' }), { status: 400 })
-        }
-
-        console.log(`📊 API: Logging points history for round ${roundId}...`)
-        try {
-          const players = db.query(`
-            SELECT DISTINCT player_id FROM round_players WHERE round_id = ?
-          `).all(roundId) as Array<{ player_id: string }>
-
-          const round = db.query(`
-            SELECT created_at FROM rounds WHERE id = ?
-          `).get(roundId) as { created_at: number } | null
-
-          if (!round) {
-            console.warn(`⚠️ Round ${roundId} not found`)
-            return new Response(JSON.stringify({ error: 'Round not found' }), { status: 404 })
-          }
-
-          for (const { player_id } of players) {
-            const player = db.query(`
-              SELECT points FROM players WHERE id = ?
-            `).get(player_id) as { points: number } | null
-
-            const roundScore = db.query(`
-              SELECT points FROM round_scores WHERE round_id = ? AND player_id = ?
-            `).get(roundId, player_id) as { points: number } | null
-
-            if (player) {
-              const pointsEarned = roundScore?.points ?? 0
-              try {
-                db.prepare(`
-                  INSERT OR REPLACE INTO player_points_history 
-                  (player_id, round_id, points_earned, total_points, created_at) 
-                  VALUES (?, ?, ?, ?, ?)
-                `).run(player_id, roundId, pointsEarned, player.points, Math.floor(Date.now() / 1000))
-              } catch (error) {
-                console.error(`⚠️ Error logging points for player ${player_id}:`, error)
-              }
-            }
-          }
-
-          console.log(`✓ API: Points history logged for round ${roundId}`)
-          return new Response(JSON.stringify({ ok: true }), {
-            headers: { 'Content-Type': 'application/json' }
-          })
-        } catch (error) {
-          console.error('❌ API: Error logging points history:', error)
-          return new Response(JSON.stringify({ error: 'Failed to log points history' }), { status: 500 })
-        }
-      },
 function getAuthenticatedUser(req: Request): AuthUser | null {
   const token = getBearerToken(req)
   if (!token) return null
@@ -783,6 +724,66 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     } catch (error) {
       console.error('❌ API: Error awarding placement points:', error)
       return new Response(JSON.stringify({ error: 'Failed to award placement points' }), { status: 500 })
+    }
+  },
+
+  '/api/points-history/log/:roundId': (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const url = new URL(req.url)
+    const roundId = url.pathname.split('/')[4]
+
+    if (!roundId) {
+      return new Response(JSON.stringify({ error: 'Missing roundId' }), { status: 400 })
+    }
+
+    console.log(`📊 API: Logging points history for round ${roundId}...`)
+    try {
+      const players = db.query(`
+        SELECT DISTINCT player_id FROM round_players WHERE round_id = ?
+      `).all(roundId) as Array<{ player_id: string }>
+
+      const round = db.query(`
+        SELECT created_at FROM rounds WHERE id = ?
+      `).get(roundId) as { created_at: number } | null
+
+      if (!round) {
+        console.warn(`⚠️ Round ${roundId} not found`)
+        return new Response(JSON.stringify({ error: 'Round not found' }), { status: 404 })
+      }
+
+      for (const { player_id } of players) {
+        const player = db.query(`
+          SELECT points FROM players WHERE id = ?
+        `).get(player_id) as { points: number } | null
+
+        const roundScore = db.query(`
+          SELECT points FROM round_scores WHERE round_id = ? AND player_id = ?
+        `).get(roundId, player_id) as { points: number } | null
+
+        if (player) {
+          const pointsEarned = roundScore?.points ?? 0
+          try {
+            db.prepare(`
+              INSERT OR REPLACE INTO player_points_history
+              (player_id, round_id, points_earned, total_points, created_at)
+              VALUES (?, ?, ?, ?, ?)
+            `).run(player_id, roundId, pointsEarned, player.points, Math.floor(Date.now() / 1000))
+          } catch (error) {
+            console.error(`⚠️ Error logging points for player ${player_id}:`, error)
+          }
+        }
+      }
+
+      console.log(`✓ API: Points history logged for round ${roundId}`)
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('❌ API: Error logging points history:', error)
+      return new Response(JSON.stringify({ error: 'Failed to log points history' }), { status: 500 })
     }
   },
 
