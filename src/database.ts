@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 
 export const db = new Database("forzabot.db");
+db.exec('PRAGMA foreign_keys = OFF'); // Disable for migrations
 
 export function initializeDatabase() {
   db.exec(`
@@ -291,4 +292,72 @@ export function initializeDatabase() {
   } catch (e) {
     // Table already exists, ignore
   }
+
+  // Migration: Backfill player_points_history with correct cumulative data
+  try {
+    // Check if we need to migrate by looking for incorrect data (total_points = 100 for everyone)
+    const needsMigration = db.query(`
+      SELECT COUNT(*) as count FROM player_points_history 
+      WHERE total_points = 100 AND points_earned > 0
+    `).get() as { count: number } | null
+
+    if (needsMigration && needsMigration.count > 0) {
+      console.log('🔄 Migrating player_points_history: wiping and backfilling with correct cumulative data...')
+      
+      // Clear all existing data
+      db.exec('DELETE FROM player_points_history')
+      
+      // Get all finished rounds ordered by creation time
+      const rounds = db.query(`
+        SELECT id, created_at FROM rounds 
+        WHERE status = 'finished' 
+        ORDER BY created_at ASC
+      `).all() as Array<{ id: string; created_at: number }>
+      
+      // Get all players who participated in any round
+      const players = db.query(`
+        SELECT DISTINCT player_id FROM round_players
+      `).all() as Array<{ player_id: string }>
+      
+      const insertStmt = db.prepare(`
+        INSERT INTO player_points_history 
+        (player_id, round_id, points_earned, total_points, created_at) 
+        VALUES (?, ?, ?, ?, ?)
+      `)
+      
+      // For each player, calculate cumulative points after each round
+      for (const { player_id } of players) {
+        let cumulativePoints = 0
+        
+        for (const round of rounds) {
+          // Get points earned in this specific round
+          const roundScore = db.query(`
+            SELECT points FROM round_scores 
+            WHERE round_id = ? AND player_id = ?
+          `).get(round.id, player_id) as { points: number } | null
+          
+          const pointsEarned = roundScore?.points ?? 0
+          cumulativePoints += pointsEarned
+          
+          // Only insert if player participated in this round
+          if (roundScore !== null) {
+            insertStmt.run(
+              player_id, 
+              round.id, 
+              pointsEarned, 
+              cumulativePoints, 
+              Math.floor(round.created_at / 1000)
+            )
+          }
+        }
+      }
+      
+      console.log('✓ Player points history backfilled successfully')
+    }
+  } catch (e) {
+    console.error('Migration error for player_points_history:', e)
+  }
+
+  // Re-enable foreign keys after migrations
+  db.exec('PRAGMA foreign_keys = ON');
 }

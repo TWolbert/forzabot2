@@ -755,25 +755,32 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       }
 
       for (const { player_id } of players) {
-        const player = db.query(`
-          SELECT points FROM players WHERE id = ?
-        `).get(player_id) as { points: number } | null
-
         const roundScore = db.query(`
           SELECT points FROM round_scores WHERE round_id = ? AND player_id = ?
         `).get(roundId, player_id) as { points: number } | null
 
-        if (player) {
-          const pointsEarned = roundScore?.points ?? 0
-          try {
-            db.prepare(`
-              INSERT OR REPLACE INTO player_points_history
-              (player_id, round_id, points_earned, total_points, created_at)
-              VALUES (?, ?, ?, ?, ?)
-            `).run(player_id, roundId, pointsEarned, player.points, Math.floor(Date.now() / 1000))
-          } catch (error) {
-            console.error(`⚠️ Error logging points for player ${player_id}:`, error)
-          }
+        const pointsEarned = roundScore?.points ?? 0
+
+        // Calculate cumulative total from all rounds up to and including this one
+        const cumulativeResult = db.query(`
+          SELECT COALESCE(SUM(rs.points), 0) as total
+          FROM round_scores rs
+          JOIN rounds r ON r.id = rs.round_id
+          WHERE rs.player_id = ? 
+            AND r.created_at <= (SELECT created_at FROM rounds WHERE id = ?)
+            AND r.status = 'finished'
+        `).get(player_id, roundId) as { total: number } | null
+
+        const totalPoints = cumulativeResult?.total ?? 0
+
+        try {
+          db.prepare(`
+            INSERT OR REPLACE INTO player_points_history
+            (player_id, round_id, points_earned, total_points, created_at)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(player_id, roundId, pointsEarned, totalPoints, Math.floor(Date.now() / 1000))
+        } catch (error) {
+          console.error(`⚠️ Error logging points for player ${player_id}:`, error)
         }
       }
 
