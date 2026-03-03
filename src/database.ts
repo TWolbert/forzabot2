@@ -125,6 +125,10 @@ export function initializeDatabase() {
       linked_at INTEGER NOT NULL,
       FOREIGN KEY (web_user_id) REFERENCES web_users (id)
     );
+    CREATE TABLE IF NOT EXISTS migrations (
+      name TEXT PRIMARY KEY,
+      ran_at INTEGER NOT NULL
+    );
   `);
 
   // Add status column to existing rounds table if it doesn't exist
@@ -293,12 +297,32 @@ export function initializeDatabase() {
     // Table already exists, ignore
   }
 
-  // Migration: Clear player_points_history to start fresh
+  // Migration: Clear player_points_history once to start fresh
   // Data will be populated naturally by future games
   try {
-    console.log('🔄 Clearing player_points_history table for fresh start...')
-    db.exec('DELETE FROM player_points_history')
-    console.log('✓ Cleared. Player points will populate from upcoming games.')
+    // Check if migration has already run
+    const migrationRan = db.query(`SELECT * FROM migrations WHERE name = 'clear_player_points_history'`).get() as any
+    
+    if (!migrationRan) {
+      const count = db.query(`SELECT COUNT(*) as count FROM player_points_history`).get() as { count: number } | null
+      
+      // Only clear if it has data (stale from previous attempt)
+      if (count && count.count > 0) {
+        console.log(`🔄 Clearing ${count.count} stale player_points_history entries...`)
+        db.exec('DELETE FROM player_points_history')
+        console.log('✓ Cleared. Player points will populate from upcoming games.')
+      } else {
+        console.log('✓ player_points_history ready (empty, will populate from games)')
+      }
+      
+      // Mark migration as complete
+      const now = Math.floor(Date.now() / 1000)
+      db.prepare('INSERT INTO migrations (name, ran_at) VALUES (?, ?)')
+        .run('clear_player_points_history', now)
+      console.log('✓ Migration marked as complete')
+    } else {
+      console.log('✓ clear_player_points_history migration already ran, skipping')
+    }
   } catch (e) {
     console.error('Migration error for player_points_history:', e)
   }
