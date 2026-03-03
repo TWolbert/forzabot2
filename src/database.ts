@@ -304,14 +304,18 @@ export function initializeDatabase() {
       // Clear all existing data
       db.exec('DELETE FROM player_points_history')
       
-      // Get all finished rounds ordered by creation time
+      // Get only the last 2 finished rounds
       const rounds = db.query(`
         SELECT id, created_at FROM rounds 
         WHERE status = 'finished' 
-        ORDER BY created_at ASC
+        ORDER BY created_at DESC
+        LIMIT 2
       `).all() as Array<{ id: string; created_at: number }>
       
-      console.log(`  Found ${rounds.length} finished rounds`)
+      // Sort in ascending order for chronological processing
+      rounds.reverse()
+      
+      console.log(`  Found ${rounds.length} recent rounds (last 2)`)
       
       // Get all players who participated in any round
       const players = db.query(`
@@ -328,7 +332,7 @@ export function initializeDatabase() {
       
       let totalInserted = 0
       
-      // For each player, calculate cumulative points after each round
+      // For each player, calculate cumulative points from the last 2 rounds only
       for (const { player_id } of players) {
         let cumulativePoints = 0
         let playerEntries = 0
@@ -359,11 +363,11 @@ export function initializeDatabase() {
         
         if (playerEntries > 0) {
           const playerName = db.query(`SELECT display_name FROM players WHERE id = ?`).get(player_id) as { display_name: string } | null
-          console.log(`  ✓ ${playerName?.display_name || player_id}: ${playerEntries} entries, final: ${cumulativePoints} pts`)
+          console.log(`  ✓ ${playerName?.display_name || player_id}: ${playerEntries} recent games, total: ${cumulativePoints} pts`)
         }
       }
       
-      console.log(`✓ Rebuilt ${totalInserted} total history entries`)
+      console.log(`✓ Rebuilt ${totalInserted} total history entries (last 2 rounds)`)
     }
   } catch (e) {
     console.error('Migration error for player_points_history:', e)
