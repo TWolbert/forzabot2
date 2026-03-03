@@ -272,4 +272,23 @@ export function initializeDatabase() {
   } catch (e) {
     // Column already exists, ignore
   }
+
+  // Add player_points_history table if it doesn't exist
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS player_points_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_id TEXT NOT NULL,
+        round_id TEXT NOT NULL,
+        points_earned INTEGER NOT NULL,
+        total_points INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (player_id) REFERENCES players (id),
+        FOREIGN KEY (round_id) REFERENCES rounds (id),
+        UNIQUE (player_id, round_id)
+      )
+    `);
+  } catch (e) {
+    // Table already exists, ignore
+  }
 }

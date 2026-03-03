@@ -317,6 +317,18 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
         } else {
           console.log(`✓ Placement points awarded for round ${round.id}`)
         }
+
+        // Log points history for each player after round is complete
+        console.log(`📊 Logging points history for round ${round.id}...`)
+        const logRes = await fetch(`http://localhost:${port}/api/points-history/log/${round.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        if (!logRes.ok) {
+          console.error(`❌ Points history logging failed: ${logRes.status} ${logRes.statusText}`)
+        } else {
+          console.log(`✓ Points history logged for round ${round.id}`)
+        }
       } catch (error) {
         console.error(`❌ Error settling bets and awarding points:`, error)
       }
@@ -504,6 +516,18 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
           console.error(`❌ Placement award failed: ${awardRes.status} ${awardRes.statusText}`)
         } else {
           console.log(`✓ Placement points awarded for round ${round.id}`)
+        }
+
+        // Log points history for each player after round is complete
+        console.log(`📊 Logging points history for round ${round.id}...`)
+        const logRes = await fetch(`http://localhost:${port}/api/points-history/log/${round.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        if (!logRes.ok) {
+          console.error(`❌ Points history logging failed: ${logRes.status} ${logRes.statusText}`)
+        } else {
+          console.log(`✓ Points history logged for round ${round.id}`)
         }
       } catch (error) {
         console.error(`❌ Error settling bets and awarding points:`, error)

@@ -63,6 +63,9 @@ export function PlayerDetail() {
   const [carImageIndex, setCarImageIndex] = useState<Record<string, number>>({})
   const [confirmedCars, setConfirmedCars] = useState<Record<string, boolean>>({})
 
+    const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null)
+
+
   const getConfirmedKey = (carName: string) => `car-image-confirmed-${carName}`
 
   const formatTime = (ms: number) => {
@@ -577,14 +580,78 @@ export function PlayerDetail() {
         <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-green-500 drop-shadow-2xl">
           <h2 className="text-2xl font-black text-green-400 mb-4 uppercase drop-shadow-lg">Points Progression</h2>
           {pointsChart ? (
-            <div className="h-64">
-              <svg className="w-full h-full" viewBox={`0 0 ${pointsChart.width} ${pointsChart.height}`} preserveAspectRatio="xMidYMid meet">
+            <div className="h-64 relative">
+              <svg 
+                className="w-full h-full cursor-crosshair" 
+                viewBox={`0 0 ${pointsChart.width} ${pointsChart.height}`} 
+                preserveAspectRatio="xMidYMid meet"
+                onMouseMove={(e) => {
+                  const svg = e.currentTarget
+                  const rect = svg.getBoundingClientRect()
+                  const x = ((e.clientX - rect.left) / rect.width) * pointsChart.width
+                  
+                  let closestIndex = -1
+                  let closestDistance = Infinity
+                  
+                  pointsChart.points.forEach((point, index) => {
+                    const distance = Math.abs(point.x - x)
+                    if (distance < closestDistance && distance < 30) {
+                      closestDistance = distance
+                      closestIndex = index
+                    }
+                  })
+                  
+                  setHoveredPointIndex(closestIndex)
+                }}
+                onMouseLeave={() => setHoveredPointIndex(null)}
+              >
                 <rect x={0} y={0} width={pointsChart.width} height={pointsChart.height} fill="transparent" />
                 <line x1={pointsChart.padding} y1={pointsChart.padding} x2={pointsChart.padding} y2={pointsChart.height - pointsChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
                 <line x1={pointsChart.padding} y1={pointsChart.height - pointsChart.padding} x2={pointsChart.width - pointsChart.padding} y2={pointsChart.height - pointsChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
                 <path d={pointsChart.path} fill="none" stroke="rgba(34, 197, 94, 0.9)" strokeWidth={3} />
                 {pointsChart.points.map((point, index) => (
-                  <circle key={`point-${index}`} cx={point.x} cy={point.y} r={3.5} fill="rgba(34, 197, 94, 0.9)" />
+                    <g key={`point-${index}`}>
+                      <circle 
+                        cx={point.x} 
+                        cy={point.y} 
+                        r={hoveredPointIndex === index ? 6 : 3.5} 
+                        fill={hoveredPointIndex === index ? "rgba(34, 197, 94, 1)" : "rgba(34, 197, 94, 0.9)"} 
+                        className="transition-all duration-200 cursor-pointer"
+                      />
+                      {hoveredPointIndex === index && (
+                        <>
+                          <rect 
+                            x={point.x - 50} 
+                            y={point.y - 45} 
+                            width={100} 
+                            height={36} 
+                            rx={4}
+                            fill="rgba(0,0,0,0.85)"
+                            stroke="rgba(34, 197, 94, 0.9)"
+                            strokeWidth={1.5}
+                          />
+                          <text 
+                            x={point.x} 
+                            y={point.y - 28} 
+                            textAnchor="middle" 
+                            fill="#22c55e" 
+                            fontSize={12} 
+                            fontWeight={700}
+                          >
+                            {Math.round(playerData?.points_progression?.[index]?.cumulative_points ?? 0)} pts
+                          </text>
+                          <text 
+                            x={point.x} 
+                            y={point.y - 15} 
+                            textAnchor="middle" 
+                            fill="#9CA3AF" 
+                            fontSize={10}
+                          >
+                            (+{playerData?.points_progression?.[index]?.round_points ?? 0})
+                          </text>
+                        </>
+                      )}
+                    </g>
                 ))}
                 <text x={pointsChart.padding} y={pointsChart.padding - 8} fill="#9CA3AF" fontSize={10} fontWeight={700}>
                   {Math.round(pointsChart.maxValue)}
