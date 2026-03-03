@@ -293,82 +293,12 @@ export function initializeDatabase() {
     // Table already exists, ignore
   }
 
-  // Migration: Backfill player_points_history with correct cumulative data
+  // Migration: Clear player_points_history to start fresh
+  // Data will be populated naturally by future games
   try {
-    // Always clear and rebuild to ensure consistency
-    const historyCount = db.query(`SELECT COUNT(*) as count FROM player_points_history`).get() as { count: number } | null
-    
-    if (!historyCount || historyCount.count === 0 || true) { // Force migration
-      console.log('🔄 Rebuilding player_points_history with correct cumulative game points...')
-      
-      // Clear all existing data
-      db.exec('DELETE FROM player_points_history')
-      
-      // Get only the last 2 finished rounds
-      const rounds = db.query(`
-        SELECT id, created_at FROM rounds 
-        WHERE status = 'finished' 
-        ORDER BY created_at DESC
-        LIMIT 2
-      `).all() as Array<{ id: string; created_at: number }>
-      
-      // Sort in ascending order for chronological processing
-      rounds.reverse()
-      
-      console.log(`  Found ${rounds.length} recent rounds (last 2)`)
-      
-      // Get all players who participated in any round
-      const players = db.query(`
-        SELECT DISTINCT player_id FROM round_players
-      `).all() as Array<{ player_id: string }>
-      
-      console.log(`  Found ${players.length} players`)
-      
-      const insertStmt = db.prepare(`
-        INSERT INTO player_points_history 
-        (player_id, round_id, points_earned, total_points, created_at) 
-        VALUES (?, ?, ?, ?, ?)
-      `)
-      
-      let totalInserted = 0
-      
-      // For each player, calculate cumulative points from the last 2 rounds only
-      for (const { player_id } of players) {
-        let cumulativePoints = 0
-        let playerEntries = 0
-        
-        for (const round of rounds) {
-          // Get points earned in this specific round
-          const roundScore = db.query(`
-            SELECT points FROM round_scores 
-            WHERE round_id = ? AND player_id = ?
-          `).get(round.id, player_id) as { points: number } | null
-          
-          // Only insert if player participated in this round
-          if (roundScore !== null) {
-            const pointsEarned = roundScore.points ?? 0
-            cumulativePoints += pointsEarned
-            
-            insertStmt.run(
-              player_id, 
-              round.id, 
-              pointsEarned, 
-              cumulativePoints, 
-              Math.floor(round.created_at / 1000)
-            )
-            playerEntries++
-            totalInserted++
-          }
-        }
-        
-        if (playerEntries > 0) {
-          const playerName = db.query(`SELECT display_name FROM players WHERE id = ?`).get(player_id) as { display_name: string } | null
-          console.log(`  ✓ ${playerName?.display_name || player_id}: ${playerEntries} recent games, total: ${cumulativePoints} pts`)
-        }
-      }
-      
-      console.log(`✓ Rebuilt ${totalInserted} total history entries (last 2 rounds)`)
-    }
+    console.log('🔄 Clearing player_points_history table for fresh start...')
+    db.exec('DELETE FROM player_points_history')
+    console.log('✓ Cleared. Player points will populate from upcoming games.')
   } catch (e) {
     console.error('Migration error for player_points_history:', e)
   }
