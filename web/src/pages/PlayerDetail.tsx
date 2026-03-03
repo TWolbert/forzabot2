@@ -36,12 +36,19 @@ interface Time {
   confirmed_image_url?: string | null
 }
 
+interface PointsProgressionEntry {
+  date: number
+  cumulative_points: number
+  round_points: number
+}
+
 interface PlayerData {
   player: Player
   stats: Stats
   games: Game[]
   times: Time[]
   confirmed_images?: Array<{ car_name: string; image_url: string }>
+  points_progression?: PointsProgressionEntry[]
 }
 
 export function PlayerDetail() {
@@ -220,6 +227,39 @@ export function PlayerDetail() {
 
     return { width, height, padding, chartWidth, chartHeight, points, path, labels, minValue, maxValue }
   }, [mapProgression])
+
+  const pointsChart = useMemo(() => {
+    const width = 600
+    const height = 240
+    const padding = 28
+    
+    if (!playerData?.points_progression || !playerData.points_progression.length) return null
+    
+    const values = playerData.points_progression.map(entry => entry.cumulative_points)
+    const labels = playerData.points_progression.map(entry => 
+      new Date(entry.date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    )
+    
+    if (!values.length) return null
+
+    const minValue = Math.min(...values, 0)
+    const maxValue = Math.max(...values, 1)
+    const range = Math.max(1, maxValue - minValue)
+    const chartWidth = width - padding * 2
+    const chartHeight = height - padding * 2
+
+    const points = values.map((value, index) => {
+      const x = padding + (values.length === 1 ? chartWidth / 2 : (index / (values.length - 1)) * chartWidth)
+      const y = padding + (chartHeight - ((value - minValue) / range) * chartHeight)
+      return { x, y }
+    })
+
+    const path = points
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+      .join(' ')
+
+    return { width, height, padding, chartWidth, chartHeight, points, path, labels, minValue, maxValue }
+  }, [playerData?.points_progression])
 
   useEffect(() => {
     if (!playerId) return
@@ -530,6 +570,33 @@ export function PlayerDetail() {
               <p className="text-gray-400 font-bold">No maps available</p>
             )}
           </div>
+        </div>
+      )}
+
+      {playerData?.points_progression && playerData.points_progression.length > 0 && (
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-green-500 drop-shadow-2xl">
+          <h2 className="text-2xl font-black text-green-400 mb-4 uppercase drop-shadow-lg">Points Progression</h2>
+          {pointsChart ? (
+            <div className="h-64">
+              <svg className="w-full h-full" viewBox={`0 0 ${pointsChart.width} ${pointsChart.height}`} preserveAspectRatio="xMidYMid meet">
+                <rect x={0} y={0} width={pointsChart.width} height={pointsChart.height} fill="transparent" />
+                <line x1={pointsChart.padding} y1={pointsChart.padding} x2={pointsChart.padding} y2={pointsChart.height - pointsChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                <line x1={pointsChart.padding} y1={pointsChart.height - pointsChart.padding} x2={pointsChart.width - pointsChart.padding} y2={pointsChart.height - pointsChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                <path d={pointsChart.path} fill="none" stroke="rgba(34, 197, 94, 0.9)" strokeWidth={3} />
+                {pointsChart.points.map((point, index) => (
+                  <circle key={`point-${index}`} cx={point.x} cy={point.y} r={3.5} fill="rgba(34, 197, 94, 0.9)" />
+                ))}
+                <text x={pointsChart.padding} y={pointsChart.padding - 8} fill="#9CA3AF" fontSize={10} fontWeight={700}>
+                  {Math.round(pointsChart.maxValue)}
+                </text>
+                <text x={pointsChart.padding} y={pointsChart.height - pointsChart.padding + 18} fill="#9CA3AF" fontSize={10} fontWeight={700}>
+                  {Math.round(pointsChart.minValue)}
+                </text>
+              </svg>
+            </div>
+          ) : (
+            <p className="text-gray-400 font-bold">No points data available</p>
+          )}
         </div>
       )}
 

@@ -830,7 +830,29 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         ).all(...[...carNames])
       : []
 
-    return new Response(JSON.stringify({ player, stats, games, times, confirmed_images: confirmedImages }), {
+    // Get player's points progression over rounds
+    const pointsProgression = db.query(`
+      SELECT
+        rs.points as round_points,
+        r.created_at
+      FROM round_scores rs
+      JOIN rounds r ON rs.round_id = r.id
+      WHERE rs.player_id = ? AND r.status = 'finished'
+      ORDER BY r.created_at ASC
+    `).all(playerId) as Array<{ round_points: number; created_at: number }>
+
+    // Calculate cumulative points
+    let cumulativePoints = 0
+    const pointsProgressionData = pointsProgression.map(entry => {
+      cumulativePoints += entry.round_points
+      return {
+        date: entry.created_at,
+        cumulative_points: cumulativePoints,
+        round_points: entry.round_points
+      }
+    })
+
+    return new Response(JSON.stringify({ player, stats, games, times, confirmed_images: confirmedImages, points_progression: pointsProgressionData }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
