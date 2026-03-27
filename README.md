@@ -258,6 +258,7 @@ Examples:
 2. Set environment variables:
    - `TOKEN`: Discord bot token
    - `CLIENT_ID`: Discord application ID
+  - `POINTS_ADMIN_PASSWORD`: Password used for the `/points` web management interface
 3. Load car data: Place `output.csv` in root directory
 4. Register commands: `bun reloadCommands.ts`
 5. Start bot: `bun index.ts`

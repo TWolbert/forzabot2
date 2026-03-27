@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Home, Trophy, Gamepad2, Clock, Zap } from 'lucide-react'
+import { Home, Trophy, Gamepad2, Clock, Zap, Shield } from 'lucide-react'
 import logo from '../5a59366f-e744-498c-9142-270c4f2069d1.png'
 import { getMe, logout, readAuthToken } from '../api'
 
@@ -160,6 +160,18 @@ export function Navigation() {
             >
               <Clock size={18} />
               TIMES
+            </Link>
+            <Link
+              to="/points"
+              className={`flex items-center gap-2 px-4 py-2 font-bold transition transform hover:scale-110 ${
+                isActive('/points')
+                  ? 'bg-white text-emerald-700 shadow-lg'
+                  : 'hover:bg-orange-500 hover:shadow-lg'
+              }`}
+              style={{clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)'}}
+            >
+              <Shield size={18} />
+              POINTS
             </Link>
 
             {authUser ? (

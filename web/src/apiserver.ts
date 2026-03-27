@@ -72,6 +72,14 @@ type AuthUser = {
   points: number
 }
 
+const ADMIN_PASSWORD = process.env.POINTS_ADMIN_PASSWORD?.trim() ?? ''
+const ADMIN_SESSION_TTL_MS = 1000 * 60 * 60 * 12
+const adminSessions = new Map<string, number>()
+
+if (!ADMIN_PASSWORD) {
+  console.warn('⚠ POINTS_ADMIN_PASSWORD is not set. Points management login is disabled.')
+}
+
 function getBearerToken(req: Request): string | null {
   const authHeader = req.headers.get('authorization')
   if (!authHeader) return null
@@ -105,6 +113,33 @@ function getAuthenticatedUser(req: Request): AuthUser | null {
     username: row.username,
     points: row.points
   }
+}
+
+function getAuthenticatedAdminToken(req: Request): string | null {
+  const token = getBearerToken(req)
+  if (!token) return null
+
+  const expiresAt = adminSessions.get(token)
+  if (!expiresAt) return null
+
+  if (expiresAt <= Date.now()) {
+    adminSessions.delete(token)
+    return null
+  }
+
+  return token
+}
+
+function requireAuthenticatedAdmin(req: Request): Response | null {
+  if (!ADMIN_PASSWORD) {
+    return new Response(JSON.stringify({ error: 'Points management is not configured on the server' }), { status: 503 })
+  }
+
+  if (!getAuthenticatedAdminToken(req)) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+  }
+
+  return null
 }
 
 function settleFinishedBets() {
@@ -618,6 +653,110 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       console.error('Error updating username:', error)
       return new Response(JSON.stringify({ error: 'Failed to update username' }), { status: 500 })
     }
+  },
+
+  '/api/admin/login': async (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    if (!ADMIN_PASSWORD) {
+      return new Response(JSON.stringify({ error: 'Points management is not configured on the server' }), { status: 503 })
+    }
+
+    const body = await req.json() as { password?: string }
+    const password = (body.password ?? '').trim()
+
+    if (!password) {
+      return new Response(JSON.stringify({ error: 'Missing password' }), { status: 400 })
+    }
+
+    if (password !== ADMIN_PASSWORD) {
+      return new Response(JSON.stringify({ error: 'Invalid password' }), { status: 401 })
+    }
+
+    const token = `${randomUUID()}-${randomUUID()}`
+    const expiresAt = Date.now() + ADMIN_SESSION_TTL_MS
+    adminSessions.set(token, expiresAt)
+
+    return new Response(JSON.stringify({ token, expires_at: expiresAt }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/admin/logout': (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const token = getBearerToken(req)
+    if (token) {
+      adminSessions.delete(token)
+    }
+
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/admin/verify': (req) => {
+    const unauthorized = requireAuthenticatedAdmin(req)
+    if (unauthorized) return unauthorized
+
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/admin/users': (req) => {
+    const unauthorized = requireAuthenticatedAdmin(req)
+    if (unauthorized) return unauthorized
+
+    const users = db.query(`
+      SELECT id, username, points, created_at
+      FROM web_users
+      ORDER BY points DESC, username ASC
+    `).all()
+
+    return new Response(JSON.stringify({ users }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/admin/users/:id/points': async (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    const unauthorized = requireAuthenticatedAdmin(req)
+    if (unauthorized) return unauthorized
+
+    const url = new URL(req.url)
+    const userId = url.pathname.split('/')[4]
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Missing user id' }), { status: 400 })
+    }
+
+    const body = await req.json() as { points?: number }
+    const points = Number(body.points)
+
+    if (!Number.isInteger(points) || points < 0) {
+      return new Response(JSON.stringify({ error: 'Points must be a non-negative integer' }), { status: 400 })
+    }
+
+    const existing = db.query('SELECT id FROM web_users WHERE id = ? LIMIT 1').get(userId) as { id: string } | null
+    if (!existing) {
+      return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 })
+    }
+
+    db.prepare('UPDATE web_users SET points = ? WHERE id = ?').run(points, userId)
+
+    const user = db.query('SELECT id, username, points, created_at FROM web_users WHERE id = ? LIMIT 1')
+      .get(userId)
+
+    return new Response(JSON.stringify({ user }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
   },
 
   '/api/bets/lock/:roundId': (req) => {

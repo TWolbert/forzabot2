@@ -1,6 +1,7 @@
 const API_BASE = '/api'
 
 const AUTH_TOKEN_KEY = 'forzabot-auth-token'
+const ADMIN_TOKEN_KEY = 'forzabot-admin-token'
 
 type HttpMethod = 'GET' | 'POST'
 
@@ -16,6 +17,20 @@ function setAuthToken(token: string | null) {
   }
   localStorage.setItem(AUTH_TOKEN_KEY, token)
   window.dispatchEvent(new Event('forzabot-auth-changed'))
+}
+
+function getAdminToken(): string | null {
+  return localStorage.getItem(ADMIN_TOKEN_KEY)
+}
+
+function setAdminToken(token: string | null) {
+  if (!token) {
+    localStorage.removeItem(ADMIN_TOKEN_KEY)
+    window.dispatchEvent(new Event('forzabot-admin-auth-changed'))
+    return
+  }
+  localStorage.setItem(ADMIN_TOKEN_KEY, token)
+  window.dispatchEvent(new Event('forzabot-admin-auth-changed'))
 }
 
 async function apiRequest(path: string, method: HttpMethod = 'GET', body?: unknown, withAuth = false) {
@@ -44,8 +59,38 @@ async function apiRequest(path: string, method: HttpMethod = 'GET', body?: unkno
   return json
 }
 
+async function adminApiRequest(path: string, method: HttpMethod = 'GET', body?: unknown, withAuth = true) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  }
+
+  if (withAuth) {
+    const token = getAdminToken()
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  })
+
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((json as { error?: string })?.error ?? 'Request failed')
+  }
+
+  return json
+}
+
 export function readAuthToken() {
   return getAuthToken()
+}
+
+export function readAdminToken() {
+  return getAdminToken()
 }
 
 export async function register(username: string, password: string) {
@@ -78,6 +123,39 @@ export async function logout() {
   } finally {
     setAuthToken(null)
   }
+}
+
+export async function adminLogin(password: string) {
+  const data = await adminApiRequest('/admin/login', 'POST', { password }, false) as {
+    token: string
+    expires_at: number
+  }
+  setAdminToken(data.token)
+  return data
+}
+
+export async function adminVerify() {
+  return adminApiRequest('/admin/verify') as Promise<{ ok: boolean }>
+}
+
+export async function adminLogout() {
+  try {
+    await adminApiRequest('/admin/logout', 'POST', {})
+  } finally {
+    setAdminToken(null)
+  }
+}
+
+export async function getPointsManagementUsers() {
+  return adminApiRequest('/admin/users') as Promise<{
+    users: Array<{ id: string; username: string; points: number; created_at: number }>
+  }>
+}
+
+export async function updateUserPoints(userId: string, points: number) {
+  return adminApiRequest(`/admin/users/${userId}/points`, 'POST', { points }) as Promise<{
+    user: { id: string; username: string; points: number; created_at: number }
+  }>
 }
 
 export async function linkDiscord(discordUserId: string) {

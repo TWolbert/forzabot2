@@ -7,6 +7,7 @@ A React + Tailwind CSS web dashboard for browsing Forza racing league statistics
 - **Leaderboard**: View top 10 players by wins with medal rankings
 - **Past Games**: Browse finished races with winners and player counts
 - **Lap Times**: Searchable table of recorded lap times with filters
+- **Points Management**: Password-protected interface to directly edit web user points
 
 ## Setup
 
@@ -23,6 +24,12 @@ bun install
 ```
 
 ### Running
+
+Add this variable to your root `.env` file before starting the API:
+
+```bash
+POINTS_ADMIN_PASSWORD=choose-a-strong-password
+```
 
 **Terminal 1 - API Server** (serves data from SQLite database):
 ```bash
