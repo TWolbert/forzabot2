@@ -143,9 +143,11 @@ export function PlayerDetail() {
       .sort((a, b) => a.date - b.date)
 
     const values = progression.map(entry => entry.cumulative_points)
-    const labels = progression.map(entry =>
-      new Date(entry.date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    )
+    const labels = progression.map(entry => {
+      if (entry.round_points === 0) return 'Start'
+      const timestampMs = entry.date > 1_000_000_000_000 ? entry.date : entry.date * 1000
+      return new Date(timestampMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    })
 
     if (!values.length) return null
 

@@ -1,12 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChevronLeft, User, Link as LinkIcon, Loader, Edit2, Check, X, Unlink } from 'lucide-react'
-import { getMe, readAuthToken, linkDiscord, getDiscordLink, updateUsername, unlinkDiscord } from '../api'
+import { getMe, readAuthToken, linkDiscord, getDiscordLink, updateUsername, unlinkDiscord, getMyPointsHistory } from '../api'
 
 interface AuthUser {
   id: string
   username: string
   points: number
+}
+
+interface PointsHistoryEntry {
+  id: number
+  source: string
+  before_points: number
+  after_points: number
+  delta: number
+  created_at: number
 }
 
 export function Profile() {
@@ -26,6 +35,8 @@ export function Profile() {
   const [linking, setLinking] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
   const [loadingDiscordLink, setLoadingDiscordLink] = useState(true)
+  const [pointsHistory, setPointsHistory] = useState<PointsHistoryEntry[]>([])
+  const [loadingPointsHistory, setLoadingPointsHistory] = useState(true)
 
   useEffect(() => {
     const token = readAuthToken()
@@ -69,6 +80,82 @@ export function Profile() {
     fetchDiscordLink()
     setLoading(false)
   }, [authUser])
+
+  useEffect(() => {
+    const fetchPointsHistory = async () => {
+      setLoadingPointsHistory(true)
+      try {
+        const result = await getMyPointsHistory()
+        setPointsHistory(result.history || [])
+      } catch (err) {
+        console.error('Failed to fetch points history:', err)
+        setPointsHistory([])
+      } finally {
+        setLoadingPointsHistory(false)
+      }
+    }
+
+    if (authUser) {
+      fetchPointsHistory()
+    }
+  }, [authUser])
+
+  const pointsProgressionChart = useMemo(() => {
+    if (!authUser) return null
+
+    const history = [...pointsHistory].sort((a, b) => a.created_at - b.created_at)
+    const startingPoints = history.length > 0 ? history[0].before_points : authUser.points
+
+    const progression = [
+      {
+        label: 'Start',
+        value: startingPoints,
+        delta: 0
+      }
+    ]
+
+    let running = startingPoints
+    for (const entry of history) {
+      running += entry.delta
+      progression.push({
+        label: new Date(entry.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        value: running,
+        delta: entry.delta
+      })
+    }
+
+    const width = 640
+    const height = 240
+    const padding = 28
+    const minValue = Math.min(...progression.map(item => item.value))
+    const maxValue = Math.max(...progression.map(item => item.value), minValue + 1)
+    const range = Math.max(1, maxValue - minValue)
+    const chartWidth = width - padding * 2
+    const chartHeight = height - padding * 2
+
+    const points = progression.map((item, index) => {
+      const x = padding + (progression.length === 1 ? chartWidth / 2 : (index / (progression.length - 1)) * chartWidth)
+      const y = padding + (chartHeight - ((item.value - minValue) / range) * chartHeight)
+      return { x, y, ...item }
+    })
+
+    const path = points
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+      .join(' ')
+
+    const xLabelStep = Math.max(1, Math.ceil(points.length / 6))
+
+    return {
+      width,
+      height,
+      padding,
+      path,
+      points,
+      minValue,
+      maxValue,
+      xLabelStep
+    }
+  }, [authUser, pointsHistory])
 
   const handleLinkDiscord = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -332,6 +419,56 @@ export function Profile() {
 
             {error && <p className="text-red-400 font-bold text-sm mt-3">{error}</p>}
             {message && <p className="text-green-400 font-bold text-sm mt-3">{message}</p>}
+          </div>
+
+          <div className="bg-gray-900 border-2 border-orange-500 rounded-lg p-6 mt-6">
+            <h2 className="text-2xl font-black text-orange-400 uppercase mb-2 drop-shadow-lg">Points Progression</h2>
+            <p className="text-gray-400 text-sm mb-4 font-bold">
+              Starts at your recorded starting points and increases based on wins from historical points data.
+            </p>
+
+            {loadingPointsHistory ? (
+              <div className="flex justify-center items-center py-8">
+                <Loader className="animate-spin text-orange-400" size={32} />
+              </div>
+            ) : pointsProgressionChart ? (
+              <div className="h-64">
+                <svg className="w-full h-full" viewBox={`0 0 ${pointsProgressionChart.width} ${pointsProgressionChart.height}`} preserveAspectRatio="xMidYMid meet">
+                  <rect x={0} y={0} width={pointsProgressionChart.width} height={pointsProgressionChart.height} fill="transparent" />
+                  <line x1={pointsProgressionChart.padding} y1={pointsProgressionChart.padding} x2={pointsProgressionChart.padding} y2={pointsProgressionChart.height - pointsProgressionChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                  <line x1={pointsProgressionChart.padding} y1={pointsProgressionChart.height - pointsProgressionChart.padding} x2={pointsProgressionChart.width - pointsProgressionChart.padding} y2={pointsProgressionChart.height - pointsProgressionChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                  <path d={pointsProgressionChart.path} fill="none" stroke="rgba(249, 115, 22, 0.95)" strokeWidth={3} />
+
+                  {pointsProgressionChart.points.map((point, index) => (
+                    <g key={`progression-${index}`}>
+                      <circle cx={point.x} cy={point.y} r={4} fill="rgba(251, 146, 60, 1)" />
+                      <title>{`${point.label}: ${point.value} pts (${point.delta >= 0 ? '+' : ''}${point.delta})`}</title>
+                      {index % pointsProgressionChart.xLabelStep === 0 && (
+                        <text
+                          x={point.x}
+                          y={pointsProgressionChart.height - 6}
+                          textAnchor="middle"
+                          fill="#9CA3AF"
+                          fontSize={10}
+                          fontWeight={700}
+                        >
+                          {point.label}
+                        </text>
+                      )}
+                    </g>
+                  ))}
+
+                  <text x={pointsProgressionChart.padding} y={pointsProgressionChart.padding - 8} fill="#9CA3AF" fontSize={10} fontWeight={700}>
+                    {Math.round(pointsProgressionChart.maxValue)}
+                  </text>
+                  <text x={pointsProgressionChart.padding} y={pointsProgressionChart.height - pointsProgressionChart.padding + 18} fill="#9CA3AF" fontSize={10} fontWeight={700}>
+                    {Math.round(pointsProgressionChart.minValue)}
+                  </text>
+                </svg>
+              </div>
+            ) : (
+              <p className="text-gray-400 font-bold">No historical points data available yet.</p>
+            )}
           </div>
 
           <div className="mt-8 pt-6 border-t border-orange-500/30">

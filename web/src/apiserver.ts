@@ -574,6 +574,27 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     })
   },
 
+  '/api/auth/points-history': (req) => {
+    settleFinishedBets()
+    const user = getAuthenticatedUser(req)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const history = db.query(`
+      SELECT id, source, before_points, after_points, delta, created_at
+      FROM web_user_points_log
+      WHERE user_id = ?
+        AND delta > 0
+        AND source IN ('bet_payout', 'race_placement_1st', 'race_placement_2nd')
+      ORDER BY created_at ASC
+    `).all(user.id)
+
+    return new Response(JSON.stringify({ history }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
   '/api/auth/logout': (req) => {
     if (req.method !== 'POST') {
       return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
@@ -1149,24 +1170,45 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         ).all(...[...carNames])
       : []
 
-    // Get player's points progression over rounds using historical data
-    const pointsProgression = db.query(`
-      SELECT
-        pph.total_points as cumulative_points,
-        pph.points_earned as round_points,
-        pph.created_at,
-        r.created_at as round_created_at
-      FROM player_points_history pph
-      JOIN rounds r ON pph.round_id = r.id
-      WHERE pph.player_id = ? AND r.status = 'finished'
-      ORDER BY r.created_at ASC
-    `).all(playerId) as Array<{ cumulative_points: number; round_points: number; created_at: number; round_created_at: number }>
+    // Build points progression from web_user_points_log (used by /points admin panel)
+    const linkedWebUser = db.query(`
+      SELECT web_user_id
+      FROM web_users_discord
+      WHERE discord_user_id = ?
+      LIMIT 1
+    `).get(playerId) as { web_user_id: string } | null
 
-    const pointsProgressionData = pointsProgression.map(entry => ({
-      date: entry.round_created_at,
-      cumulative_points: entry.cumulative_points,
-      round_points: entry.round_points
-    }))
+    let pointsProgressionData: Array<{ date: number; cumulative_points: number; round_points: number }> = []
+
+    if (linkedWebUser) {
+      const logs = db.query(`
+        SELECT before_points, delta, created_at
+        FROM web_user_points_log
+        WHERE user_id = ?
+          AND delta > 0
+          AND source IN ('bet_payout', 'race_placement_1st', 'race_placement_2nd')
+        ORDER BY created_at ASC
+      `).all(linkedWebUser.web_user_id) as Array<{ before_points: number; delta: number; created_at: number }>
+
+      if (logs.length > 0) {
+        const startPoints = logs[0].before_points
+        pointsProgressionData.push({
+          date: logs[0].created_at,
+          cumulative_points: startPoints,
+          round_points: 0
+        })
+
+        let runningPoints = startPoints
+        for (const log of logs) {
+          runningPoints += log.delta
+          pointsProgressionData.push({
+            date: log.created_at,
+            cumulative_points: runningPoints,
+            round_points: log.delta
+          })
+        }
+      }
+    }
 
     return new Response(JSON.stringify({ player, stats, games, times, confirmed_images: confirmedImages, points_progression: pointsProgressionData }), {
       headers: { 'Content-Type': 'application/json' }

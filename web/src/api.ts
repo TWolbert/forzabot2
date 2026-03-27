@@ -117,6 +117,19 @@ export async function getMe() {
   }>
 }
 
+export async function getMyPointsHistory() {
+  return apiRequest('/auth/points-history', 'GET', undefined, true) as Promise<{
+    history: Array<{
+      id: number
+      source: string
+      before_points: number
+      after_points: number
+      delta: number
+      created_at: number
+    }>
+  }>
+}
+
 export async function logout() {
   try {
     await apiRequest('/auth/logout', 'POST', {}, true)
