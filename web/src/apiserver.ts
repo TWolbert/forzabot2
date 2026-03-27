@@ -49,6 +49,17 @@ function initializeApiDatabase() {
       FOREIGN KEY (user_id) REFERENCES web_users (id),
       FOREIGN KEY (predicted_player_id) REFERENCES players (id)
     );
+    CREATE TABLE IF NOT EXISTS web_user_points_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      before_points INTEGER NOT NULL,
+      after_points INTEGER NOT NULL,
+      delta INTEGER NOT NULL,
+      metadata TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES web_users (id)
+    );
   `)
 
   try {
@@ -71,6 +82,12 @@ type AuthUser = {
   username: string
   points: number
 }
+
+type PointsLogSource =
+  | 'bet_payout'
+  | 'race_placement_1st'
+  | 'race_placement_2nd'
+  | 'admin_panel_set'
 
 const ADMIN_PASSWORD = process.env.POINTS_ADMIN_PASSWORD?.trim() ?? ''
 const ADMIN_SESSION_TTL_MS = 1000 * 60 * 60 * 12
@@ -142,9 +159,62 @@ function requireAuthenticatedAdmin(req: Request): Response | null {
   return null
 }
 
+function getWebUserPoints(userId: string): number {
+  const row = db.query('SELECT points FROM web_users WHERE id = ? LIMIT 1').get(userId) as { points: number } | null
+  if (!row) {
+    throw new Error('USER_NOT_FOUND')
+  }
+  return row.points
+}
+
+function insertWebUserPointsLog(
+  userId: string,
+  source: PointsLogSource,
+  beforePoints: number,
+  afterPoints: number,
+  metadata?: Record<string, unknown>
+) {
+  const delta = afterPoints - beforePoints
+  db.prepare(`
+    INSERT INTO web_user_points_log (user_id, source, before_points, after_points, delta, metadata, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    userId,
+    source,
+    beforePoints,
+    afterPoints,
+    delta,
+    metadata ? JSON.stringify(metadata) : null,
+    Date.now()
+  )
+}
+
+function addWebUserPointsWithLog(
+  userId: string,
+  delta: number,
+  source: PointsLogSource,
+  metadata?: Record<string, unknown>
+) {
+  const beforePoints = getWebUserPoints(userId)
+  const afterPoints = beforePoints + delta
+  db.prepare('UPDATE web_users SET points = ? WHERE id = ?').run(afterPoints, userId)
+  insertWebUserPointsLog(userId, source, beforePoints, afterPoints, metadata)
+}
+
+function setWebUserPointsWithLog(
+  userId: string,
+  newPoints: number,
+  source: PointsLogSource,
+  metadata?: Record<string, unknown>
+) {
+  const beforePoints = getWebUserPoints(userId)
+  db.prepare('UPDATE web_users SET points = ? WHERE id = ?').run(newPoints, userId)
+  insertWebUserPointsLog(userId, source, beforePoints, newPoints, metadata)
+}
+
 function settleFinishedBets() {
   const pendingBets = db.query(`
-    SELECT b.id, b.user_id, b.predicted_player_id, b.points_wagered, r.winner_id
+    SELECT b.id, b.round_id, b.user_id, b.predicted_player_id, b.points_wagered, r.winner_id
     FROM bets b
     JOIN rounds r ON r.id = b.round_id
     WHERE b.status = 'locked'
@@ -152,6 +222,7 @@ function settleFinishedBets() {
       AND r.winner_id IS NOT NULL
   `).all() as Array<{
     id: number
+    round_id: string
     user_id: string
     predicted_player_id: string
     points_wagered: number
@@ -161,7 +232,6 @@ function settleFinishedBets() {
   if (pendingBets.length === 0) return
 
   const markSettledStmt = db.prepare('UPDATE bets SET status = ?, payout = ?, settled_at = ? WHERE id = ?')
-  const updatePointsStmt = db.prepare('UPDATE web_users SET points = points + ? WHERE id = ?')
   const now = Date.now()
 
   for (const bet of pendingBets) {
@@ -170,7 +240,11 @@ function settleFinishedBets() {
 
     db.transaction(() => {
       if (payout > 0) {
-        updatePointsStmt.run(payout, bet.user_id)
+        addWebUserPointsWithLog(bet.user_id, payout, 'bet_payout', {
+          bet_id: bet.id,
+          round_id: bet.round_id,
+          wagered: bet.points_wagered
+        })
       }
       markSettledStmt.run(won ? 'won' : 'lost', payout, now, bet.id)
     })()
@@ -200,8 +274,6 @@ function awardPlacementPoints(roundId: string) {
     return
   }
 
-  const awardStmt = db.prepare('UPDATE web_users SET points = points + ? WHERE id = ?')
-
   // Always award 50 points to 1st place winner, regardless of race type
   const winnerPlayerId = scores[0]?.player_id
   if (winnerPlayerId) {
@@ -211,7 +283,11 @@ function awardPlacementPoints(roundId: string) {
 
     if (winnerUser) {
       const winnerWebUser = db.query('SELECT username FROM web_users WHERE id = ?').get(winnerUser.web_user_id) as { username: string } | null
-      awardStmt.run(50, winnerUser.web_user_id)
+      addWebUserPointsWithLog(winnerUser.web_user_id, 50, 'race_placement_1st', {
+        round_id: roundId,
+        race_type: round.race_type,
+        discord_user_id: winnerPlayerId
+      })
       console.log(`✓ Awarded 50 points to web user ${winnerUser.web_user_id} (${winnerWebUser?.username ?? 'unknown username'}) for 1st place (Discord ID: ${winnerPlayerId}, race type: ${round.race_type})`)
     } else {
       console.log(`⚠ No linked web account found for 1st place winner (Discord ID: ${winnerPlayerId}) - no points awarded`)
@@ -228,7 +304,11 @@ function awardPlacementPoints(roundId: string) {
 
       if (secondUser) {
         const secondWebUser = db.query('SELECT username FROM web_users WHERE id = ?').get(secondUser.web_user_id) as { username: string } | null
-        awardStmt.run(25, secondUser.web_user_id)
+        addWebUserPointsWithLog(secondUser.web_user_id, 25, 'race_placement_2nd', {
+          round_id: roundId,
+          race_type: round.race_type,
+          discord_user_id: secondPlayerId
+        })
         console.log(`✓ Awarded 25 points to web user ${secondUser.web_user_id} (${secondWebUser?.username ?? 'unknown username'}) for 2nd place (Discord ID: ${secondPlayerId})`)
       } else {
         console.log(`⚠ No linked web account found for 2nd place (Discord ID: ${secondPlayerId}) - no points awarded`)
@@ -749,12 +829,41 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 })
     }
 
-    db.prepare('UPDATE web_users SET points = ? WHERE id = ?').run(points, userId)
+    const adminSession = getAuthenticatedAdminToken(req)
+    setWebUserPointsWithLog(userId, points, 'admin_panel_set', {
+      admin_session: adminSession ? adminSession.slice(0, 8) : null
+    })
 
     const user = db.query('SELECT id, username, points, created_at FROM web_users WHERE id = ? LIMIT 1')
       .get(userId)
 
     return new Response(JSON.stringify({ user }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  },
+
+  '/api/admin/points-log': (req) => {
+    const unauthorized = requireAuthenticatedAdmin(req)
+    if (unauthorized) return unauthorized
+
+    const logs = db.query(`
+      SELECT
+        l.id,
+        l.user_id,
+        wu.username,
+        l.source,
+        l.before_points,
+        l.after_points,
+        l.delta,
+        l.metadata,
+        l.created_at
+      FROM web_user_points_log l
+      JOIN web_users wu ON wu.id = l.user_id
+      ORDER BY l.created_at DESC
+      LIMIT 200
+    `).all()
+
+    return new Response(JSON.stringify({ logs }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
@@ -798,7 +907,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     try {
       // Settle bets for this specific round
       const pendingBets = db.query(`
-        SELECT b.id, b.user_id, b.predicted_player_id, b.points_wagered, r.winner_id
+        SELECT b.id, b.round_id, b.user_id, b.predicted_player_id, b.points_wagered, r.winner_id
         FROM bets b
         JOIN rounds r ON r.id = b.round_id
         WHERE b.status = 'locked'
@@ -807,6 +916,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
           AND r.id = ?
       `).all(roundId) as Array<{
         id: number
+        round_id: string
         user_id: string
         predicted_player_id: string
         points_wagered: number
@@ -815,7 +925,6 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
 
       if (pendingBets.length > 0) {
         const markSettledStmt = db.prepare('UPDATE bets SET status = ?, payout = ?, settled_at = ? WHERE id = ?')
-        const updatePointsStmt = db.prepare('UPDATE web_users SET points = points + ? WHERE id = ?')
         const now = Date.now()
 
         for (const bet of pendingBets) {
@@ -824,7 +933,11 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
 
           db.transaction(() => {
             if (payout > 0) {
-              updatePointsStmt.run(payout, bet.user_id)
+              addWebUserPointsWithLog(bet.user_id, payout, 'bet_payout', {
+                bet_id: bet.id,
+                round_id: bet.round_id,
+                wagered: bet.points_wagered
+              })
             }
             markSettledStmt.run(won ? 'won' : 'lost', payout, now, bet.id)
           })()

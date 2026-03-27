@@ -158,6 +158,22 @@ export async function updateUserPoints(userId: string, points: number) {
   }>
 }
 
+export async function getPointsChangeLogs() {
+  return adminApiRequest('/admin/points-log') as Promise<{
+    logs: Array<{
+      id: number
+      user_id: string
+      username: string
+      source: string
+      before_points: number
+      after_points: number
+      delta: number
+      metadata: string | null
+      created_at: number
+    }>
+  }>
+}
+
 export async function linkDiscord(discordUserId: string) {
   return apiRequest('/auth/link-discord', 'POST', { discord_user_id: discordUserId }, true) as Promise<{
     ok: boolean

@@ -5,6 +5,7 @@ import {
   adminLogin,
   adminLogout,
   adminVerify,
+  getPointsChangeLogs,
   getPointsManagementUsers,
   readAdminToken,
   updateUserPoints
@@ -17,12 +18,25 @@ type ManagedUser = {
   created_at: number
 }
 
+type PointsChangeLog = {
+  id: number
+  user_id: string
+  username: string
+  source: string
+  before_points: number
+  after_points: number
+  delta: number
+  metadata: string | null
+  created_at: number
+}
+
 export function PointsManagement() {
   const [password, setPassword] = useState('')
   const [authenticating, setAuthenticating] = useState(false)
   const [authenticated, setAuthenticated] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [users, setUsers] = useState<ManagedUser[]>([])
+  const [logs, setLogs] = useState<PointsChangeLog[]>([])
   const [pointsDrafts, setPointsDrafts] = useState<Record<string, string>>({})
   const [savingByUserId, setSavingByUserId] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +66,15 @@ export function PointsManagement() {
     }
   }
 
+  const loadLogs = async () => {
+    try {
+      const data = await getPointsChangeLogs()
+      setLogs(data.logs)
+    } catch (loadError) {
+      setError((loadError as Error).message)
+    }
+  }
+
   useEffect(() => {
     const token = readAdminToken()
     if (!token) return
@@ -60,6 +83,7 @@ export function PointsManagement() {
       .then(async () => {
         setAuthenticated(true)
         await loadUsers()
+        await loadLogs()
       })
       .catch(async () => {
         setAuthenticated(false)
@@ -78,6 +102,7 @@ export function PointsManagement() {
       setPassword('')
       setAuthenticated(true)
       await loadUsers()
+      await loadLogs()
     } catch (loginError) {
       setAuthenticated(false)
       setError((loginError as Error).message)
@@ -90,6 +115,7 @@ export function PointsManagement() {
     await adminLogout()
     setAuthenticated(false)
     setUsers([])
+    setLogs([])
     setPointsDrafts({})
     setMessage('Signed out from points management')
   }
@@ -110,6 +136,7 @@ export function PointsManagement() {
     try {
       const response = await updateUserPoints(userId, parsed)
       setUsers(prev => prev.map(user => (user.id === userId ? response.user : user)))
+      await loadLogs()
       setMessage(`Updated points for ${response.user.username}`)
     } catch (saveError) {
       setError((saveError as Error).message)
@@ -172,7 +199,10 @@ export function PointsManagement() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={loadUsers}
+                onClick={async () => {
+                  await loadUsers()
+                  await loadLogs()
+                }}
                 disabled={loadingUsers}
                 className="inline-flex items-center gap-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-60 text-white font-black px-3 py-2 rounded"
               >
@@ -241,6 +271,48 @@ export function PointsManagement() {
                       </tr>
                     )
                   })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-orange-500 drop-shadow-2xl mt-6">
+          <h2 className="text-2xl font-black text-orange-400 uppercase mb-3">Points Change Log</h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Every award or panel update is recorded with before/after totals and delta.
+          </p>
+
+          {logs.length === 0 ? (
+            <p className="text-gray-400">No point changes logged yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] border-collapse">
+                <thead>
+                  <tr className="text-left text-orange-300 text-sm uppercase">
+                    <th className="border-b border-orange-500/40 pb-2">When</th>
+                    <th className="border-b border-orange-500/40 pb-2">User</th>
+                    <th className="border-b border-orange-500/40 pb-2">Source</th>
+                    <th className="border-b border-orange-500/40 pb-2">Before</th>
+                    <th className="border-b border-orange-500/40 pb-2">After</th>
+                    <th className="border-b border-orange-500/40 pb-2">Delta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map(log => (
+                    <tr key={log.id} className="text-white">
+                      <td className="py-2 border-b border-gray-700/60 text-sm">
+                        {new Date(log.created_at).toLocaleString()}
+                      </td>
+                      <td className="py-2 border-b border-gray-700/60 font-bold">{log.username}</td>
+                      <td className="py-2 border-b border-gray-700/60 text-sm">{log.source}</td>
+                      <td className="py-2 border-b border-gray-700/60">{log.before_points}</td>
+                      <td className="py-2 border-b border-gray-700/60">{log.after_points}</td>
+                      <td className={`py-2 border-b border-gray-700/60 font-black ${log.delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {log.delta >= 0 ? `+${log.delta}` : log.delta}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
