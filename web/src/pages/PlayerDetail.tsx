@@ -62,8 +62,6 @@ export function PlayerDetail() {
   const [carImageIndex, setCarImageIndex] = useState<Record<string, number>>({})
   const [confirmedCars, setConfirmedCars] = useState<Record<string, boolean>>({})
 
-    const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null)
-
 
   const getConfirmedKey = (carName: string) => `car-image-confirmed-${carName}`
 
@@ -134,21 +132,24 @@ export function PlayerDetail() {
   const paginatedGames = playerData?.games?.slice(gamesPage * GAMES_PER_PAGE, (gamesPage + 1) * GAMES_PER_PAGE) ?? []
   const gamesTotalPages = playerData?.games ? Math.ceil(playerData.games.length / GAMES_PER_PAGE) : 1
 
-  const pointsChart = useMemo(() => {
+  const historicalPointsChart = useMemo(() => {
     const width = 600
     const height = 240
     const padding = 28
     
     if (!playerData?.points_progression || !playerData.points_progression.length) return null
-    
-    const values = playerData.points_progression.map(entry => entry.cumulative_points)
-    const labels = playerData.points_progression.map(entry => 
+
+    const progression = [...playerData.points_progression]
+      .sort((a, b) => a.date - b.date)
+
+    const values = progression.map(entry => entry.cumulative_points)
+    const labels = progression.map(entry =>
       new Date(entry.date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     )
-    
+
     if (!values.length) return null
 
-    const minValue = Math.min(...values, 0)
+    const minValue = Math.min(...values)
     const maxValue = Math.max(...values, 1)
     const range = Math.max(1, maxValue - minValue)
     const chartWidth = width - padding * 2
@@ -164,7 +165,9 @@ export function PlayerDetail() {
       .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
       .join(' ')
 
-    return { width, height, padding, chartWidth, chartHeight, points, path, labels, minValue, maxValue }
+    const xLabelStep = Math.max(1, Math.ceil(labels.length / 6))
+
+    return { progression, width, height, padding, chartWidth, chartHeight, points, path, labels, minValue, maxValue, xLabelStep }
   }, [playerData?.points_progression])
 
   useEffect(() => {
@@ -402,85 +405,42 @@ export function PlayerDetail() {
         <h2 className="text-2xl font-black text-green-400 mb-2 uppercase drop-shadow-lg">Historical Points</h2>
         <p className="text-sm text-gray-400 mb-4 font-bold">Based on recorded point history per finished round.</p>
         {playerData?.points_progression && playerData.points_progression.length > 0 ? (
-          pointsChart ? (
+          historicalPointsChart ? (
             <div className="h-64 relative">
-              <svg 
-                className="w-full h-full cursor-crosshair" 
-                viewBox={`0 0 ${pointsChart.width} ${pointsChart.height}`} 
+              <svg
+                className="w-full h-full"
+                viewBox={`0 0 ${historicalPointsChart.width} ${historicalPointsChart.height}`}
                 preserveAspectRatio="xMidYMid meet"
-                onMouseMove={(e) => {
-                  const svg = e.currentTarget
-                  const rect = svg.getBoundingClientRect()
-                  const x = ((e.clientX - rect.left) / rect.width) * pointsChart.width
-                  
-                  let closestIndex = -1
-                  let closestDistance = Infinity
-                  
-                  pointsChart.points.forEach((point, index) => {
-                    const distance = Math.abs(point.x - x)
-                    if (distance < closestDistance && distance < 30) {
-                      closestDistance = distance
-                      closestIndex = index
-                    }
-                  })
-                  
-                  setHoveredPointIndex(closestIndex)
-                }}
-                onMouseLeave={() => setHoveredPointIndex(null)}
               >
-                <rect x={0} y={0} width={pointsChart.width} height={pointsChart.height} fill="transparent" />
-                <line x1={pointsChart.padding} y1={pointsChart.padding} x2={pointsChart.padding} y2={pointsChart.height - pointsChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
-                <line x1={pointsChart.padding} y1={pointsChart.height - pointsChart.padding} x2={pointsChart.width - pointsChart.padding} y2={pointsChart.height - pointsChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
-                <path d={pointsChart.path} fill="none" stroke="rgba(34, 197, 94, 0.9)" strokeWidth={3} />
-                {pointsChart.points.map((point, index) => (
-                    <g key={`point-${index}`}>
-                      <circle 
-                        cx={point.x} 
-                        cy={point.y} 
-                        r={hoveredPointIndex === index ? 6 : 3.5} 
-                        fill={hoveredPointIndex === index ? "rgba(34, 197, 94, 1)" : "rgba(34, 197, 94, 0.9)"} 
-                        className="transition-all duration-200 cursor-pointer"
-                      />
-                      {hoveredPointIndex === index && (
-                        <>
-                          <rect 
-                            x={point.x - 50} 
-                            y={point.y - 45} 
-                            width={100} 
-                            height={36} 
-                            rx={4}
-                            fill="rgba(0,0,0,0.85)"
-                            stroke="rgba(34, 197, 94, 0.9)"
-                            strokeWidth={1.5}
-                          />
-                          <text 
-                            x={point.x} 
-                            y={point.y - 28} 
-                            textAnchor="middle" 
-                            fill="#22c55e" 
-                            fontSize={12} 
-                            fontWeight={700}
-                          >
-                            {Math.round(playerData?.points_progression?.[index]?.cumulative_points ?? 0)} pts
-                          </text>
-                          <text 
-                            x={point.x} 
-                            y={point.y - 15} 
-                            textAnchor="middle" 
-                            fill="#9CA3AF" 
-                            fontSize={10}
-                          >
-                            (+{playerData?.points_progression?.[index]?.round_points ?? 0})
-                          </text>
-                        </>
-                      )}
-                    </g>
+                <rect x={0} y={0} width={historicalPointsChart.width} height={historicalPointsChart.height} fill="transparent" />
+                <line x1={historicalPointsChart.padding} y1={historicalPointsChart.padding} x2={historicalPointsChart.padding} y2={historicalPointsChart.height - historicalPointsChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                <line x1={historicalPointsChart.padding} y1={historicalPointsChart.height - historicalPointsChart.padding} x2={historicalPointsChart.width - historicalPointsChart.padding} y2={historicalPointsChart.height - historicalPointsChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
+                <path d={historicalPointsChart.path} fill="none" stroke="rgba(34, 197, 94, 0.95)" strokeWidth={3} />
+                {historicalPointsChart.points.map((point, index) => (
+                  <g key={`point-${index}`}>
+                    <circle cx={point.x} cy={point.y} r={4} fill="rgba(34, 197, 94, 0.95)" />
+                    <title>
+                      {`${historicalPointsChart.labels[index]} | ${historicalPointsChart.progression[index]?.cumulative_points ?? 0} pts | delta ${(historicalPointsChart.progression[index]?.round_points ?? 0) >= 0 ? '+' : ''}${historicalPointsChart.progression[index]?.round_points ?? 0}`}
+                    </title>
+                    {index % historicalPointsChart.xLabelStep === 0 && (
+                      <text
+                        x={point.x}
+                        y={historicalPointsChart.height - 6}
+                        textAnchor="middle"
+                        fill="#9CA3AF"
+                        fontSize={10}
+                        fontWeight={700}
+                      >
+                        {historicalPointsChart.labels[index]}
+                      </text>
+                    )}
+                  </g>
                 ))}
-                <text x={pointsChart.padding} y={pointsChart.padding - 8} fill="#9CA3AF" fontSize={10} fontWeight={700}>
-                  {Math.round(pointsChart.maxValue)}
+                <text x={historicalPointsChart.padding} y={historicalPointsChart.padding - 8} fill="#9CA3AF" fontSize={10} fontWeight={700}>
+                  {Math.round(historicalPointsChart.maxValue)}
                 </text>
-                <text x={pointsChart.padding} y={pointsChart.height - pointsChart.padding + 18} fill="#9CA3AF" fontSize={10} fontWeight={700}>
-                  {Math.round(pointsChart.minValue)}
+                <text x={historicalPointsChart.padding} y={historicalPointsChart.height - historicalPointsChart.padding + 18} fill="#9CA3AF" fontSize={10} fontWeight={700}>
+                  {Math.round(historicalPointsChart.minValue)}
                 </text>
               </svg>
             </div>
