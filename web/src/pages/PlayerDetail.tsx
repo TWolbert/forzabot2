@@ -58,7 +58,6 @@ export function PlayerDetail() {
   const [carsPage, setCarsPage] = useState(0)
   const [gamesPage, setGamesPage] = useState(0)
   const [gamesExpanded, setGamesExpanded] = useState(false)
-  const [selectedMap, setSelectedMap] = useState('')
   const [carImages, setCarImages] = useState<Record<string, string | null>>({})
   const [carImageIndex, setCarImageIndex] = useState<Record<string, number>>({})
   const [confirmedCars, setConfirmedCars] = useState<Record<string, boolean>>({})
@@ -134,102 +133,6 @@ export function PlayerDetail() {
   const GAMES_PER_PAGE = 10
   const paginatedGames = playerData?.games?.slice(gamesPage * GAMES_PER_PAGE, (gamesPage + 1) * GAMES_PER_PAGE) ?? []
   const gamesTotalPages = playerData?.games ? Math.ceil(playerData.games.length / GAMES_PER_PAGE) : 1
-
-  const mapOptions = useMemo(() => {
-    if (!playerData) return []
-    return Array.from(new Set(playerData.times.map(time => time.race_name))).sort()
-  }, [playerData])
-
-  useEffect(() => {
-    if (!selectedMap && mapOptions.length > 0) {
-      setSelectedMap(mapOptions[0])
-    }
-  }, [mapOptions, selectedMap])
-
-  const timesPerDay = useMemo(() => {
-    if (!playerData) return { labels: [], values: [] as number[] }
-
-    const counts = new Map<string, number>()
-    for (const time of playerData.times) {
-      const dayKey = new Date(time.created_at).toISOString().slice(0, 10)
-      counts.set(dayKey, (counts.get(dayKey) ?? 0) + 1)
-    }
-
-    const sortedKeys = Array.from(counts.keys()).sort()
-    const labels = sortedKeys.map(key => new Date(key).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
-    const values = sortedKeys.map(key => counts.get(key) ?? 0)
-
-    return { labels, values }
-  }, [playerData])
-
-  const mapProgression = useMemo(() => {
-    if (!playerData || !selectedMap) return { labels: [], values: [] as number[] }
-
-    const filtered = playerData.times
-      .filter(time => time.race_name === selectedMap)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-
-    return {
-      labels: filtered.map(time => formatDate(time.created_at)),
-      values: filtered.map(time => time.time_ms)
-    }
-  }, [playerData, selectedMap])
-
-  const barChart = useMemo(() => {
-    const width = 600
-    const height = 240
-    const padding = 28
-    const values = timesPerDay.values
-    const labels = timesPerDay.labels
-    if (!values.length) return null
-
-    const maxValue = Math.max(...values, 1)
-    const chartWidth = width - padding * 2
-    const chartHeight = height - padding * 2
-    const barSlot = chartWidth / values.length
-    const barWidth = Math.max(6, barSlot * 0.7)
-    const labelStep = Math.max(1, Math.ceil(values.length / 6))
-
-    const bars = values.map((value, index) => {
-      const barHeight = (value / maxValue) * chartHeight
-      return {
-        x: padding + index * barSlot + (barSlot - barWidth) / 2,
-        y: padding + (chartHeight - barHeight),
-        width: barWidth,
-        height: barHeight,
-        label: labels[index]
-      }
-    })
-
-    return { width, height, padding, chartWidth, chartHeight, bars, labelStep }
-  }, [timesPerDay])
-
-  const lineChart = useMemo(() => {
-    const width = 600
-    const height = 240
-    const padding = 28
-    const values = mapProgression.values
-    const labels = mapProgression.labels
-    if (!values.length) return null
-
-    const minValue = Math.min(...values)
-    const maxValue = Math.max(...values)
-    const range = Math.max(1, maxValue - minValue)
-    const chartWidth = width - padding * 2
-    const chartHeight = height - padding * 2
-
-    const points = values.map((value, index) => {
-      const x = padding + (values.length === 1 ? chartWidth / 2 : (index / (values.length - 1)) * chartWidth)
-      const y = padding + (chartHeight - ((value - minValue) / range) * chartHeight)
-      return { x, y }
-    })
-
-    const path = points
-      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
-      .join(' ')
-
-    return { width, height, padding, chartWidth, chartHeight, points, path, labels, minValue, maxValue }
-  }, [mapProgression])
 
   const pointsChart = useMemo(() => {
     const width = 600
@@ -495,91 +398,11 @@ export function PlayerDetail() {
         </div>
       </div>
 
-      {times.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-cyan-500 drop-shadow-2xl">
-            <h2 className="text-2xl font-black text-cyan-400 mb-4 uppercase drop-shadow-lg">Times Per Day</h2>
-            {barChart ? (
-              <div className="h-64">
-                <svg className="w-full h-full" viewBox={`0 0 ${barChart.width} ${barChart.height}`} preserveAspectRatio="xMidYMid meet">
-                  <rect x={0} y={0} width={barChart.width} height={barChart.height} fill="transparent" />
-                  <line x1={barChart.padding} y1={barChart.padding} x2={barChart.padding} y2={barChart.height - barChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
-                  <line x1={barChart.padding} y1={barChart.height - barChart.padding} x2={barChart.width - barChart.padding} y2={barChart.height - barChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
-                  {barChart.bars.map((bar, index) => (
-                    <g key={`bar-${index}`}>
-                      <rect
-                        x={bar.x}
-                        y={bar.y}
-                        width={bar.width}
-                        height={bar.height}
-                        rx={4}
-                        fill="rgba(34, 211, 238, 0.6)"
-                      />
-                      {index % barChart.labelStep === 0 && (
-                        <text
-                          x={bar.x + bar.width / 2}
-                          y={barChart.height - 6}
-                          textAnchor="middle"
-                          fill="#9CA3AF"
-                          fontSize={10}
-                          fontWeight={700}
-                        >
-                          {bar.label}
-                        </text>
-                      )}
-                    </g>
-                  ))}
-                </svg>
-              </div>
-            ) : (
-              <p className="text-gray-400 font-bold">No time trials recorded yet</p>
-            )}
-          </div>
-
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-blue-500 drop-shadow-2xl">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <h2 className="text-2xl font-black text-blue-400 uppercase drop-shadow-lg">Map Progression</h2>
-              <select
-                value={selectedMap}
-                onChange={event => setSelectedMap(event.target.value)}
-                className="bg-gray-900 border-2 border-blue-500 text-blue-200 text-sm font-black rounded-lg px-3 py-2 focus:outline-none focus:border-blue-300"
-              >
-                {mapOptions.map(map => (
-                  <option key={map} value={map}>
-                    {map}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {lineChart ? (
-              <div className="h-64">
-                <svg className="w-full h-full" viewBox={`0 0 ${lineChart.width} ${lineChart.height}`} preserveAspectRatio="xMidYMid meet">
-                  <rect x={0} y={0} width={lineChart.width} height={lineChart.height} fill="transparent" />
-                  <line x1={lineChart.padding} y1={lineChart.padding} x2={lineChart.padding} y2={lineChart.height - lineChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
-                  <line x1={lineChart.padding} y1={lineChart.height - lineChart.padding} x2={lineChart.width - lineChart.padding} y2={lineChart.height - lineChart.padding} stroke="rgba(255,255,255,0.1)" strokeWidth={2} />
-                  <path d={lineChart.path} fill="none" stroke="rgba(59, 130, 246, 0.9)" strokeWidth={3} />
-                  {lineChart.points.map((point, index) => (
-                    <circle key={`point-${index}`} cx={point.x} cy={point.y} r={3.5} fill="rgba(59, 130, 246, 0.9)" />
-                  ))}
-                  <text x={lineChart.padding} y={lineChart.padding - 8} fill="#9CA3AF" fontSize={10} fontWeight={700}>
-                    {formatTime(lineChart.maxValue)}
-                  </text>
-                  <text x={lineChart.padding} y={lineChart.height - lineChart.padding + 18} fill="#9CA3AF" fontSize={10} fontWeight={700}>
-                    {formatTime(lineChart.minValue)}
-                  </text>
-                </svg>
-              </div>
-            ) : (
-              <p className="text-gray-400 font-bold">No maps available</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {playerData?.points_progression && playerData.points_progression.length > 0 && (
-        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-green-500 drop-shadow-2xl">
-          <h2 className="text-2xl font-black text-green-400 mb-4 uppercase drop-shadow-lg">Points Progression</h2>
-          {pointsChart ? (
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border-4 border-green-500 drop-shadow-2xl">
+        <h2 className="text-2xl font-black text-green-400 mb-2 uppercase drop-shadow-lg">Historical Points</h2>
+        <p className="text-sm text-gray-400 mb-4 font-bold">Based on recorded point history per finished round.</p>
+        {playerData?.points_progression && playerData.points_progression.length > 0 ? (
+          pointsChart ? (
             <div className="h-64 relative">
               <svg 
                 className="w-full h-full cursor-crosshair" 
@@ -663,9 +486,11 @@ export function PlayerDetail() {
             </div>
           ) : (
             <p className="text-gray-400 font-bold">No points data available</p>
-          )}
-        </div>
-      )}
+          )
+        ) : (
+          <p className="text-gray-400 font-bold">No historical points data available yet</p>
+        )}
+      </div>
 
       {/* Games */}
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-yellow-500 drop-shadow-2xl">
