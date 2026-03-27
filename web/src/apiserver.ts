@@ -85,6 +85,8 @@ type AuthUser = {
 
 type PointsLogSource =
   | 'bet_payout'
+  | 'bet_placed'
+  | 'bet_refunded'
   | 'race_placement_1st'
   | 'race_placement_2nd'
   | 'admin_panel_set'
@@ -1512,10 +1514,17 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         }
 
         if (existingBet) {
-          db.prepare('UPDATE web_users SET points = points + ? WHERE id = ?').run(existingBet.points_wagered, user.id)
+          addWebUserPointsWithLog(user.id, existingBet.points_wagered, 'bet_refunded', {
+            round_id: roundId,
+            previous_wager: existingBet.points_wagered
+          })
         }
 
-        db.prepare('UPDATE web_users SET points = points - ? WHERE id = ?').run(points, user.id)
+        addWebUserPointsWithLog(user.id, -points, 'bet_placed', {
+          round_id: roundId,
+          predicted_player_id: predictedPlayerId,
+          wager_amount: points
+        })
 
         // Delete existing bet for this round/player/user combination, then insert new one
         db.prepare('DELETE FROM bets WHERE round_id = ? AND user_id = ? AND predicted_player_id = ?').run(roundId, user.id, predictedPlayerId)
