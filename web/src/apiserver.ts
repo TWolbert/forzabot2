@@ -587,8 +587,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       SELECT id, source, before_points, after_points, delta, created_at
       FROM web_user_points_log
       WHERE user_id = ?
-        AND delta > 0
-        AND source IN ('bet_payout', 'race_placement_1st', 'race_placement_2nd')
+        AND source IN ('bet_payout', 'bet_placed', 'bet_refunded', 'race_placement_1st', 'race_placement_2nd')
       ORDER BY created_at ASC
     `).all(user.id)
 
@@ -1187,8 +1186,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         SELECT before_points, delta, created_at
         FROM web_user_points_log
         WHERE user_id = ?
-          AND delta > 0
-          AND source IN ('bet_payout', 'race_placement_1st', 'race_placement_2nd')
+          AND source IN ('bet_payout', 'bet_placed', 'bet_refunded', 'race_placement_1st', 'race_placement_2nd')
         ORDER BY created_at ASC
       `).all(linkedWebUser.web_user_id) as Array<{ before_points: number; delta: number; created_at: number }>
 
