@@ -31,14 +31,6 @@ export function Leaderboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-96">
-        <Loader className="animate-spin" size={40} />
-      </div>
-    )
-  }
-
   const medals = ['🥇', '🥈', '🥉']
   const topThree = data.slice(0, 3)
   const rest = data.slice(3)
@@ -133,6 +125,14 @@ export function Leaderboard() {
       series: chartSeries
     }
   }, [topThree])
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-96">
+        <Loader className="animate-spin" size={40} />
+      </div>
+    )
+  }
 
   return (
     <div className="bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 rounded-2xl shadow-2xl p-8 border-2 border-green-500">
