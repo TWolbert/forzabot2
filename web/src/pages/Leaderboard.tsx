@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getLeaderboard } from '../api'
 import { Loader } from 'lucide-react'
 import { Link } from 'react-router-dom'
+
+interface LeaderboardProgressionEntry {
+  date: number
+  cumulative_points: number
+  delta: number
+}
 
 interface LeaderboardEntry {
   id: string
@@ -11,6 +17,7 @@ interface LeaderboardEntry {
   avatar_url?: string | null
   total_bets: number
   won_bets: number
+  points_progression?: LeaderboardProgressionEntry[]
 }
 
 export function Leaderboard() {
@@ -35,7 +42,97 @@ export function Leaderboard() {
   const medals = ['🥇', '🥈', '🥉']
   const topThree = data.slice(0, 3)
   const rest = data.slice(3)
+  const topThreeColors = ['#34d399', '#f59e0b', '#60a5fa']
   const initialsFor = (username: string) => (username || '?').slice(0, 1).toUpperCase()
+
+  const topThreeChart = useMemo(() => {
+    if (!topThree.length) return null
+
+    const series = topThree.map((player, index) => {
+      const progression = (player.points_progression && player.points_progression.length
+        ? [...player.points_progression]
+        : [{ date: Date.now(), cumulative_points: player.points, delta: 0 }]
+      ).sort((a, b) => a.date - b.date)
+
+      return {
+        id: player.id,
+        username: player.username,
+        color: topThreeColors[index % topThreeColors.length],
+        progression
+      }
+    })
+
+    const timestamps = [...new Set(series.flatMap(player => player.progression.map(point => point.date)))].sort((a, b) => a - b)
+    if (!timestamps.length) return null
+
+    const resolvedTimestamps = timestamps.length === 1 ? [timestamps[0], timestamps[0] + 1] : timestamps
+
+    const valueAt = (points: LeaderboardProgressionEntry[], ts: number) => {
+      let current = points[0]?.cumulative_points ?? 0
+      for (const point of points) {
+        if (point.date <= ts) current = point.cumulative_points
+        else break
+      }
+      return current
+    }
+
+    const values = series.flatMap(player => resolvedTimestamps.map(ts => valueAt(player.progression, ts)))
+    const minValue = Math.min(...values)
+    const maxValue = Math.max(...values, minValue + 1)
+    const range = Math.max(1, maxValue - minValue)
+
+    const width = 760
+    const height = 280
+    const paddingX = 34
+    const paddingY = 28
+    const chartWidth = width - paddingX * 2
+    const chartHeight = height - paddingY * 2
+
+    const xFor = (index: number) => paddingX + (resolvedTimestamps.length === 1 ? chartWidth / 2 : (index / (resolvedTimestamps.length - 1)) * chartWidth)
+    const yFor = (value: number) => paddingY + (chartHeight - ((value - minValue) / range) * chartHeight)
+
+    const chartSeries = series.map(player => {
+      const points = resolvedTimestamps.map((ts, index) => {
+        const value = valueAt(player.progression, ts)
+        return {
+          ts,
+          value,
+          x: xFor(index),
+          y: yFor(value)
+        }
+      })
+
+      const path = points
+        .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+        .join(' ')
+
+      return {
+        ...player,
+        points,
+        path,
+        latest: points[points.length - 1]?.value ?? 0
+      }
+    })
+
+    const labelStep = Math.max(1, Math.ceil(resolvedTimestamps.length / 6))
+    const labels = resolvedTimestamps.map((ts, index) => {
+      if (index % labelStep !== 0 && index !== resolvedTimestamps.length - 1) return ''
+      return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    })
+
+    return {
+      width,
+      height,
+      chartWidth,
+      chartHeight,
+      paddingX,
+      paddingY,
+      minValue,
+      maxValue,
+      labels,
+      series: chartSeries
+    }
+  }, [topThree])
 
   return (
     <div className="bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 rounded-2xl shadow-2xl p-8 border-2 border-green-500">
@@ -61,6 +158,92 @@ export function Leaderboard() {
         </div>
       ) : (
         <>
+          {topThreeChart && (
+            <div className="mb-10 bg-gray-900/70 border border-green-500/30 rounded-2xl p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg font-black text-white">Top 3 Points Race</h3>
+                <div className="flex flex-wrap items-center gap-3">
+                  {topThreeChart.series.map((player) => (
+                    <div key={player.id} className="flex items-center gap-2 text-xs font-black text-gray-200 uppercase tracking-wide">
+                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: player.color }}></span>
+                      <span>{player.username}</span>
+                      <span className="text-gray-400">{player.latest} pts</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <svg viewBox={`0 0 ${topThreeChart.width} ${topThreeChart.height}`} className="w-full min-w-[680px] h-[260px]" role="img" aria-label="Top 3 points progression">
+                  <defs>
+                    <linearGradient id="leaderboardChartFade" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#22c55e" stopOpacity="0.16" />
+                      <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+
+                  <rect
+                    x={topThreeChart.paddingX}
+                    y={topThreeChart.paddingY}
+                    width={topThreeChart.chartWidth}
+                    height={topThreeChart.chartHeight}
+                    fill="url(#leaderboardChartFade)"
+                  />
+
+                  {[0, 1, 2, 3, 4].map((step) => {
+                    const y = topThreeChart.paddingY + (step / 4) * topThreeChart.chartHeight
+                    return (
+                      <line
+                        key={step}
+                        x1={topThreeChart.paddingX}
+                        y1={y}
+                        x2={topThreeChart.paddingX + topThreeChart.chartWidth}
+                        y2={y}
+                        stroke="rgba(75, 85, 99, 0.55)"
+                        strokeDasharray="5 6"
+                      />
+                    )
+                  })}
+
+                  {topThreeChart.series.map((player) => (
+                    <g key={player.id}>
+                      <path d={player.path} fill="none" stroke={player.color} strokeWidth={3} strokeLinecap="round" />
+                      {player.points.map((point, index) => (
+                        <circle key={`${player.id}-${index}`} cx={point.x} cy={point.y} r={3.8} fill={player.color}>
+                          <title>{`${player.username} | ${point.value} pts | ${new Date(point.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}</title>
+                        </circle>
+                      ))}
+                    </g>
+                  ))}
+
+                  {topThreeChart.labels.map((label, index) => {
+                    if (!label) return null
+                    const x = topThreeChart.paddingX + (topThreeChart.labels.length === 1 ? topThreeChart.chartWidth / 2 : (index / (topThreeChart.labels.length - 1)) * topThreeChart.chartWidth)
+                    return (
+                      <text
+                        key={`x-label-${index}`}
+                        x={x}
+                        y={topThreeChart.height - 8}
+                        textAnchor="middle"
+                        fontSize="11"
+                        fill="#9ca3af"
+                      >
+                        {label}
+                      </text>
+                    )
+                  })}
+
+                  <text x={topThreeChart.paddingX - 8} y={topThreeChart.paddingY + 10} textAnchor="end" fontSize="11" fill="#9ca3af">
+                    {Math.round(topThreeChart.maxValue)}
+                  </text>
+                  <text x={topThreeChart.paddingX - 8} y={topThreeChart.paddingY + topThreeChart.chartHeight} textAnchor="end" fontSize="11" fill="#9ca3af">
+                    {Math.round(topThreeChart.minValue)}
+                  </text>
+                </svg>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
             {topThree.map((player, index) => (
               player.linked_player_id ? (

@@ -1076,6 +1076,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         wu.id,
         wu.username,
         wu.points,
+        wu.created_at as user_created_at,
         wud.discord_user_id as linked_player_id,
         da.avatar_url,
         COUNT(b.id) as total_bets,
@@ -1089,7 +1090,58 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       LIMIT 50
     `).all()
 
-    return new Response(JSON.stringify(result || []), {
+    const leaderboard = (result || []) as Array<{
+      id: string
+      username: string
+      points: number
+      user_created_at: number
+      linked_player_id: string | null
+      avatar_url: string | null
+      total_bets: number
+      won_bets: number
+      points_progression?: Array<{ date: number; cumulative_points: number; delta: number }>
+    }>
+
+    for (const entry of leaderboard.slice(0, 3)) {
+      const logs = db.query(`
+        SELECT before_points, delta, created_at
+        FROM web_user_points_log
+        WHERE user_id = ?
+          AND source IN ('bet_payout', 'bet_placed', 'bet_refunded', 'race_placement_1st', 'race_placement_2nd')
+        ORDER BY created_at ASC
+      `).all(entry.id) as Array<{ before_points: number; delta: number; created_at: number }>
+
+      if (!logs.length) {
+        entry.points_progression = [{
+          date: entry.user_created_at || Date.now(),
+          cumulative_points: entry.points,
+          delta: 0
+        }]
+        continue
+      }
+
+      const progression: Array<{ date: number; cumulative_points: number; delta: number }> = []
+      const startPoints = logs[0].before_points
+      progression.push({
+        date: logs[0].created_at,
+        cumulative_points: startPoints,
+        delta: 0
+      })
+
+      let runningPoints = startPoints
+      for (const log of logs) {
+        runningPoints += log.delta
+        progression.push({
+          date: log.created_at,
+          cumulative_points: runningPoints,
+          delta: log.delta
+        })
+      }
+
+      entry.points_progression = progression
+    }
+
+    return new Response(JSON.stringify(leaderboard), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
