@@ -67,11 +67,6 @@ interface AuthUser {
   points: number
 }
 
-const CANDR_TILE_OPTIONS = Array.from({ length: 7 }, (_, rowIndex) => {
-  const rowLetter = String.fromCharCode('A'.charCodeAt(0) + rowIndex)
-  return Array.from({ length: 13 }, (_, colIndex) => `${rowLetter}${colIndex + 1}`)
-}).flat()
-
 export function ActiveRound() {
   const navigate = useNavigate()
   const [round, setRound] = useState<ActiveRoundData | null>(null)
@@ -121,11 +116,18 @@ export function ActiveRound() {
     const rowIndex = rowLetter.charCodeAt(0) - 'A'.charCodeAt(0)
     if (rowIndex < 0 || rowIndex > 6) return null
 
+    const mapLeftPct = 3.3
+    const mapTopPct = 5.3
+    const cellWidthPct = 7.44
+    const cellHeightPct = 13.53
+    const leftPct = mapLeftPct + (col - 1) * cellWidthPct
+    const topPct = mapTopPct + rowIndex * cellHeightPct
+
     return {
-      left: `${(col / 14) * 100}%`,
-      top: `${((rowIndex + 1) / 8) * 100}%`,
-      width: `${(1 / 14) * 100}%`,
-      height: `${(1 / 8) * 100}%`
+      left: `calc(${leftPct}% + 1px)`,
+      top: `calc(${topPct}% + 1px)`,
+      width: `calc(${cellWidthPct}% - 2px)`,
+      height: `calc(${cellHeightPct}% - 2px)`
     }
   }
 
@@ -508,17 +510,15 @@ export function ActiveRound() {
             {isLinkedRobber && (
               <div className="rounded-lg border border-emerald-400/60 bg-emerald-950/20 p-4">
                 <p className="text-xs uppercase text-emerald-200/90 mb-2">Set Target Tile</p>
-                <select
+                <input
                   value={candrTileChoice}
-                  onChange={event => setCandrTileChoice(event.target.value)}
-                  className="w-full rounded-lg border border-emerald-400/50 bg-black/40 px-3 py-2 text-emerald-50 font-bold outline-none"
+                  onChange={event => setCandrTileChoice(event.target.value.toUpperCase())}
+                  className="w-full rounded-lg border border-emerald-400/50 bg-black/40 px-3 py-2 text-emerald-50 font-bold outline-none uppercase"
                   disabled={!canChangeTile || settingCandrTile}
-                >
-                  <option value="">Choose a tile</option>
-                  {CANDR_TILE_OPTIONS.map(tile => (
-                    <option key={tile} value={tile}>{tile}</option>
-                  ))}
-                </select>
+                  placeholder="Enter tile like A1"
+                  maxLength={3}
+                  autoComplete="off"
+                />
                 <button
                   type="button"
                   onClick={handleSetCandrTile}
