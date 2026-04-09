@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Loader, ChevronLeft, Users, Trophy, Check } from 'lucide-react'
 import { getCachedCarImage } from '../utils/carImageCache'
-import { getMe, placeBet, readAuthToken } from '../api'
+import { getDiscordLink, getMe, placeBet, readAuthToken, setCandrTile } from '../api'
 
 interface Player {
   id: string
@@ -67,6 +67,11 @@ interface AuthUser {
   points: number
 }
 
+const CANDR_TILE_OPTIONS = Array.from({ length: 7 }, (_, rowIndex) => {
+  const rowLetter = String.fromCharCode('A'.charCodeAt(0) + rowIndex)
+  return Array.from({ length: 13 }, (_, colIndex) => `${rowLetter}${colIndex + 1}`)
+}).flat()
+
 export function ActiveRound() {
   const navigate = useNavigate()
   const [round, setRound] = useState<ActiveRoundData | null>(null)
@@ -75,11 +80,16 @@ export function ActiveRound() {
   const [playerImageIndex, setPlayerImageIndex] = useState<Record<string, number>>({})
   const [confirmedImages, setConfirmedImages] = useState<Record<string, boolean>>({})
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
+  const [discordLink, setDiscordLink] = useState<{ discord_username: string | null; discord_user_id: string | null } | null>(null)
   const [betPlayerId, setBetPlayerId] = useState('')
   const [betPoints, setBetPoints] = useState('10')
   const [betMessage, setBetMessage] = useState<string | null>(null)
   const [betError, setBetError] = useState<string | null>(null)
   const [placingBet, setPlacingBet] = useState(false)
+  const [candrTileChoice, setCandrTileChoice] = useState('')
+  const [candrTileMessage, setCandrTileMessage] = useState<string | null>(null)
+  const [candrTileError, setCandrTileError] = useState<string | null>(null)
+  const [settingCandrTile, setSettingCandrTile] = useState(false)
   const [now, setNow] = useState(Date.now())
   const lastRoundIdRef = useRef<string | null>(null)
   const redirectedRef = useRef(false)
@@ -123,13 +133,25 @@ export function ActiveRound() {
     const token = readAuthToken()
     if (!token) {
       setAuthUser(null)
+      setDiscordLink(null)
       return
     }
 
     getMe()
       .then(result => setAuthUser(result.user))
       .catch(() => setAuthUser(null))
+
+    getDiscordLink()
+      .then(result => setDiscordLink({
+        discord_username: result.discord_username,
+        discord_user_id: result.discord_user_id
+      }))
+      .catch(() => setDiscordLink(null))
   }, [])
+
+  useEffect(() => {
+    setCandrTileChoice(round?.candr?.current_tile ?? '')
+  }, [round?.candr?.current_tile, round?.id])
 
   useEffect(() => {
     let mounted = true
@@ -370,6 +392,30 @@ export function ActiveRound() {
     }
   }
 
+  const handleSetCandrTile = async () => {
+    if (!round || !candrTileChoice) return
+
+    setCandrTileError(null)
+    setCandrTileMessage(null)
+    setSettingCandrTile(true)
+
+    try {
+      const result = await setCandrTile(round.id, candrTileChoice)
+      setRound(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          candr: result.candr
+        }
+      })
+      setCandrTileMessage(`Tile updated to ${result.candr?.current_tile ?? candrTileChoice}`)
+    } catch (error) {
+      setCandrTileError((error as Error).message)
+    } finally {
+      setSettingCandrTile(false)
+    }
+  }
+
   const selectedBetPlayerName = round?.players.find(player => player.id === betPlayerId)?.display_name
 
   if (loading) {
@@ -398,6 +444,12 @@ export function ActiveRound() {
     const startedAt = candr?.started_at ?? null
     const elapsed = startedAt ? formatDuration(now - startedAt) : '0:00'
     const nextTileIn = candr?.next_tile_due_at ? formatDuration(candr.next_tile_due_at - now) : 'Ready'
+    const linkedDiscordId = discordLink?.discord_user_id ?? null
+    const isLinkedRobber = Boolean(linkedDiscordId && robberId && linkedDiscordId === robberId)
+    const canChangeTile = Boolean(isLinkedRobber && round.status === 'active' && (!candr?.current_tile || !candr.next_tile_due_at || now >= candr.next_tile_due_at))
+    const tileCooldownMessage = candr?.current_tile && candr.next_tile_due_at && now < candr.next_tile_due_at
+      ? `Next tile in ${formatDuration(candr.next_tile_due_at - now)}`
+      : null
 
     return (
       <div className="rounded-2xl border-2 border-amber-600/70 bg-[radial-gradient(circle_at_top,#6b5b3d_0%,#2f2922_35%,#1b1816_100%)] p-4 md:p-6 text-amber-100 shadow-2xl">
@@ -448,7 +500,40 @@ export function ActiveRound() {
             <div className="rounded-lg border border-red-400/60 bg-red-900/20 p-4">
               <p className="text-xs uppercase text-red-200/90 mb-1">Robber</p>
               <p className="text-xl font-black text-red-300">{robber?.display_name || candr?.robber_name || 'Unassigned'}</p>
+              {isLinkedRobber && (
+                <p className="mt-2 text-xs font-bold text-red-100/80">Your linked Discord account can update the live tile here.</p>
+              )}
             </div>
+
+            {isLinkedRobber && (
+              <div className="rounded-lg border border-emerald-400/60 bg-emerald-950/20 p-4">
+                <p className="text-xs uppercase text-emerald-200/90 mb-2">Set Target Tile</p>
+                <select
+                  value={candrTileChoice}
+                  onChange={event => setCandrTileChoice(event.target.value)}
+                  className="w-full rounded-lg border border-emerald-400/50 bg-black/40 px-3 py-2 text-emerald-50 font-bold outline-none"
+                  disabled={!canChangeTile || settingCandrTile}
+                >
+                  <option value="">Choose a tile</option>
+                  {CANDR_TILE_OPTIONS.map(tile => (
+                    <option key={tile} value={tile}>{tile}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSetCandrTile}
+                  disabled={!canChangeTile || settingCandrTile || !candrTileChoice}
+                  className="mt-3 w-full rounded-lg bg-emerald-500 px-4 py-2 font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {settingCandrTile ? 'Updating...' : 'Update Tile'}
+                </button>
+                <p className="mt-2 text-xs font-bold text-emerald-100/80">
+                  {tileCooldownMessage ?? 'Tile changes sync with the shared C&R state.'}
+                </p>
+                {candrTileError && <p className="mt-2 text-sm font-bold text-red-300">{candrTileError}</p>}
+                {candrTileMessage && <p className="mt-2 text-sm font-bold text-emerald-300">{candrTileMessage}</p>}
+              </div>
+            )}
 
             <div className="rounded-lg border border-blue-400/50 bg-blue-950/20 p-4">
               <p className="text-xs uppercase text-blue-200/90 mb-2">Cops</p>

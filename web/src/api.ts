@@ -224,6 +224,30 @@ export async function placeBet(roundId: string, predictedPlayerId: string, point
   }>
 }
 
+export async function setCandrTile(roundId: string, tile: string) {
+  return apiRequest('/candr/tile', 'POST', { roundId, tile }, true) as Promise<{
+    ok: true
+    candr: {
+      robber_player_id?: string
+      robber_name?: string
+      current_tile?: string | null
+      previous_tile?: string | null
+      started_at?: number
+      last_tile_at?: number | null
+      next_tile_due_at?: number | null
+      finished_at?: number | null
+      elapsed_ms?: number
+      total_time_ms?: number | null
+      map_url?: string
+      roles?: Array<{
+        player_id: string
+        display_name: string
+        role: 'robber' | 'cop'
+      }>
+    } | null
+  }>
+}
+
 export async function getLeaderboard() {
   return apiRequest('/leaderboard')
 }

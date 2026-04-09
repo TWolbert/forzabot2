@@ -118,6 +118,10 @@ type PointsLogSource =
   | 'race_placement_2nd'
   | 'admin_panel_set'
 
+const CANDR_ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'] as const
+const CANDR_MAX_COL = 13
+const CANDR_TILE_INTERVAL_MS = 2 * 60 * 1000
+
 const ADMIN_PASSWORD = process.env.POINTS_ADMIN_PASSWORD?.trim() ?? ''
 const ADMIN_SESSION_TTL_MS = 1000 * 60 * 60 * 12
 const adminSessions = new Map<string, number>()
@@ -239,6 +243,69 @@ function setWebUserPointsWithLog(
   const beforePoints = getWebUserPoints(userId)
   db.prepare('UPDATE web_users SET points = ? WHERE id = ?').run(newPoints, userId)
   insertWebUserPointsLog(userId, source, beforePoints, newPoints, metadata)
+}
+
+function normalizeCandrTile(tile: string): string | null {
+  const normalized = tile.trim().toUpperCase()
+  const match = normalized.match(/^([A-G])(\d{1,2})$/)
+  if (!match) return null
+
+  const row = match[1]
+  const col = Number.parseInt(match[2], 10)
+  if (!row || Number.isNaN(col) || col < 1 || col > CANDR_MAX_COL) return null
+
+  return `${row}${col}`
+}
+
+function loadCandrState(roundId: string, totalTimeMs: number | null = null) {
+  const state = db.query(`
+    SELECT
+      cs.robber_player_id,
+      rp.display_name as robber_name,
+      cs.current_tile,
+      cs.previous_tile,
+      cs.started_at,
+      cs.last_tile_at,
+      cs.next_tile_due_at,
+      cs.finished_at
+    FROM candr_state cs
+    LEFT JOIN players rp ON cs.robber_player_id = rp.id
+    WHERE cs.round_id = ?
+    LIMIT 1
+  `).get(roundId) as {
+    robber_player_id?: string
+    robber_name?: string
+    current_tile?: string | null
+    previous_tile?: string | null
+    started_at?: number
+    last_tile_at?: number | null
+    next_tile_due_at?: number | null
+    finished_at?: number | null
+  } | null
+
+  if (!state) return null
+
+  const roles = db.query(`
+    SELECT
+      cpr.player_id,
+      p.display_name,
+      cpr.role
+    FROM candr_player_roles cpr
+    JOIN players p ON p.id = cpr.player_id
+    WHERE cpr.round_id = ?
+    ORDER BY p.display_name ASC
+  `).all(roundId)
+
+  const now = Date.now()
+  const elapsedMs = state.started_at ? Math.max(0, now - state.started_at) : 0
+
+  return {
+    ...state,
+    elapsed_ms: elapsedMs,
+    total_time_ms: totalTimeMs,
+    map_url: '/api/candr-map',
+    roles,
+  }
 }
 
 function settleFinishedBets() {
@@ -1094,6 +1161,104 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       console.error('❌ API: Error logging points history:', error)
       return new Response(JSON.stringify({ error: 'Failed to log points history' }), { status: 500 })
     }
+  },
+
+  '/api/candr/tile': async (req) => {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    settleFinishedBets()
+
+    const user = getAuthenticatedUser(req)
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const body = await req.json() as { roundId?: string; tile?: string }
+    const roundId = (body.roundId ?? '').trim()
+    const tile = normalizeCandrTile(body.tile ?? '')
+
+    if (!roundId || !tile) {
+      return new Response(JSON.stringify({ error: 'Invalid tile selection' }), { status: 400 })
+    }
+
+    const round = db.query(`
+      SELECT id, status, race_type, candr_total_time_ms
+      FROM rounds
+      WHERE id = ?
+      LIMIT 1
+    `).get(roundId) as { id: string; status: string; race_type: string; candr_total_time_ms: number | null } | null
+
+    if (!round || round.race_type?.toLowerCase() !== 'candr') {
+      return new Response(JSON.stringify({ error: 'Round is not a cops and robbers round' }), { status: 400 })
+    }
+
+    if (round.status !== 'active') {
+      return new Response(JSON.stringify({ error: 'Cops and robbers is not active' }), { status: 400 })
+    }
+
+    const state = db.query(`
+      SELECT robber_player_id, current_tile, next_tile_due_at, finished_at
+      FROM candr_state
+      WHERE round_id = ?
+      LIMIT 1
+    `).get(roundId) as {
+      robber_player_id: string
+      current_tile: string | null
+      next_tile_due_at: number | null
+      finished_at: number | null
+    } | null
+
+    if (!state) {
+      return new Response(JSON.stringify({ error: 'CANDR state not found for this round' }), { status: 404 })
+    }
+
+    if (state.finished_at) {
+      return new Response(JSON.stringify({ error: 'Cops and robbers has already finished' }), { status: 400 })
+    }
+
+    const linkedDiscord = db.query(`
+      SELECT discord_user_id
+      FROM web_users_discord
+      WHERE web_user_id = ?
+      LIMIT 1
+    `).get(user.id) as { discord_user_id: string } | null
+
+    if (!linkedDiscord?.discord_user_id) {
+      return new Response(JSON.stringify({ error: 'Link your Discord account before setting a tile' }), { status: 403 })
+    }
+
+    if (linkedDiscord.discord_user_id !== state.robber_player_id) {
+      return new Response(JSON.stringify({ error: 'Only the robber can set the target tile.' }), { status: 403 })
+    }
+
+    const now = Date.now()
+    const dueAt = state.next_tile_due_at ?? now
+    if (state.current_tile && now < dueAt) {
+      const remainingMs = dueAt - now
+      const minutes = Math.floor(remainingMs / 60000)
+      const seconds = Math.floor((remainingMs % 60000) / 1000)
+      return new Response(JSON.stringify({
+        error: `You must wait ${minutes}:${seconds.toString().padStart(2, '0')} before selecting a new tile.`
+      }), { status: 400 })
+    }
+
+    const nextDueAt = now + CANDR_TILE_INTERVAL_MS
+
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE candr_state
+        SET previous_tile = current_tile, current_tile = ?, last_tile_at = ?, next_tile_due_at = ?
+        WHERE round_id = ?
+      `).run(tile, now, nextDueAt, roundId)
+    })()
+
+    const updatedCandr = loadCandrState(roundId, round.candr_total_time_ms)
+
+    return new Response(JSON.stringify({ ok: true, candr: updatedCandr }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
   },
 
   // Leaderboard - top 10 users by points
