@@ -1,6 +1,92 @@
-import { ChatInputCommandInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, Client } from "discord.js";
-import { formatCurrency, getTopCarImage } from "../utils";
+import path from "node:path";
+import { ChatInputCommandInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, Client, StringSelectMenuBuilder } from "discord.js";
+import { formatCurrency, getTopCarImage, pickRandom } from "../utils";
 import { db } from "../database";
+
+const CANDR_ROWS = ["A", "B", "C", "D", "E", "F", "G"] as const;
+const CANDR_TILE_INTERVAL_MS = 2 * 60 * 1000;
+
+const formatDuration = (milliseconds: number): string => {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+};
+
+const normalizeCandrTile = (tile: string): string | null => {
+  const normalized = tile.trim().toUpperCase();
+  const match = normalized.match(/^([A-G])(\d{1,2})$/);
+  if (!match) return null;
+
+  const row = match[1];
+  const col = Number.parseInt(match[2]!, 10);
+  if (!row || Number.isNaN(col) || col < 1 || col > 13) return null;
+
+  return `${row}${col}`;
+};
+
+const buildCandrTileRows = (roundId: string) => {
+  const allTiles: string[] = [];
+  for (const row of CANDR_ROWS) {
+    for (let col = 1; col <= 13; col += 1) {
+      allTiles.push(`${row}${col}`);
+    }
+  }
+
+  const chunkSize = 25;
+  const rows: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
+
+  for (let i = 0; i < allTiles.length; i += chunkSize) {
+    const chunk = allTiles.slice(i, i + chunkSize);
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(`candr_tile_pick_${roundId}_${Math.floor(i / chunkSize)}`)
+      .setPlaceholder(`Select target tile (${i + 1}-${Math.min(i + chunkSize, allTiles.length)})`)
+      .addOptions(
+        chunk.map((tile) => ({
+          label: tile,
+          value: tile,
+          description: `Set current target to ${tile}`,
+        }))
+      );
+
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu));
+  }
+
+  return rows;
+};
+
+const buildCandrStatusEmbed = (
+  roundId: string,
+  robberId: string,
+  cops: Array<{ id: string; display_name: string; username: string }>,
+  currentTile: string | null,
+  nextTileDueAt: number | null,
+  startedAt: number
+) => {
+  const now = Date.now();
+  const remainingMs = nextTileDueAt ? Math.max(0, nextTileDueAt - now) : 0;
+  const elapsed = formatDuration(now - startedAt);
+
+  const embed = new EmbedBuilder()
+    .setTitle("🚨 Cops and Robbers Live")
+    .setColor(0xcc2b2b)
+    .setDescription("Robber must set a new tile every 2 minutes. The active tile is highlighted red on the live page.")
+    .addFields(
+      { name: "Robber", value: `<@${robberId}>`, inline: true },
+      { name: "Current Target Tile", value: currentTile ?? "Not selected yet", inline: true },
+      { name: "Next Tile In", value: nextTileDueAt ? formatDuration(remainingMs) : "Ready now", inline: true },
+      { name: "Elapsed Time", value: elapsed, inline: true },
+      {
+        name: "Cops",
+        value: cops.map((cop) => `<@${cop.id}>`).join("\n") || "None",
+        inline: false,
+      }
+    )
+    .setImage("attachment://candr-map.png")
+    .setFooter({ text: `Round ID: ${roundId}` });
+
+  return embed;
+};
 
 async function lockBetsForRound(roundId: string) {
   try {
@@ -29,6 +115,7 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
   }
 
   const isAllSeries = round.race_type.toLowerCase() === 'all';
+  const isCandr = round.race_type.toLowerCase() === 'candr';
   const raceSequence = ['drag', 'circuit', 'rally', 'goliath'];
 
   // Get players for this round
@@ -130,6 +217,132 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
 
   // Lock bets for this round
   await lockBetsForRound(round.id);
+
+  if (isCandr) {
+    const robber = pickRandom(roundPlayers);
+    const cops = roundPlayers.filter((player) => player.id !== robber.id);
+    const startedAt = Date.now();
+
+    db.transaction(() => {
+      db.prepare("DELETE FROM candr_player_roles WHERE round_id = ?").run(round.id);
+      db.prepare("DELETE FROM candr_state WHERE round_id = ?").run(round.id);
+
+      const roleStmt = db.prepare(
+        "INSERT INTO candr_player_roles (round_id, player_id, role, assigned_at) VALUES (?, ?, ?, ?)"
+      );
+
+      for (const player of roundPlayers) {
+        roleStmt.run(round.id, player.id, player.id === robber.id ? "robber" : "cop", startedAt);
+      }
+
+      db.prepare(
+        "INSERT INTO candr_state (round_id, robber_player_id, current_tile, previous_tile, started_at, last_tile_at, next_tile_due_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      ).run(round.id, robber.id, null, null, startedAt, null, startedAt, null);
+    })();
+
+    const mapPath = path.join(process.cwd(), "media", "cops_and_robbers_map.png");
+    const mapName = "candr-map.png";
+
+    const finishButtonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`finish_game_${round.id}`)
+        .setLabel("Finish Cops and Robbers")
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji("🏁")
+    );
+
+    const response = await interaction.reply({
+      embeds: [
+        buildCandrStatusEmbed(round.id, robber.id, cops, null, startedAt, startedAt),
+      ],
+      files: [{ attachment: mapPath, name: mapName }],
+      components: [finishButtonRow, ...buildCandrTileRows(round.id)],
+    });
+
+    const candrCollector = response.createMessageComponentCollector({
+      time: 12 * 60 * 60 * 1000,
+    });
+
+    candrCollector.on("collect", async (i) => {
+      if (i.isButton() && i.customId === `finish_game_${round.id}`) {
+        if (i.user.id !== round.created_by) {
+          await i.reply({ content: "Only the person who started this round can finish it!", ephemeral: true });
+          return;
+        }
+
+        const state = db.query(
+          "SELECT started_at, current_tile FROM candr_state WHERE round_id = ? LIMIT 1"
+        ).get(round.id) as { started_at: number; current_tile: string | null } | null;
+
+        const finishedAt = Date.now();
+        const totalTimeMs = Math.max(0, finishedAt - (state?.started_at ?? finishedAt));
+
+        db.transaction(() => {
+          db.prepare("UPDATE rounds SET status = 'finished', candr_total_time_ms = ? WHERE id = ?").run(totalTimeMs, round.id);
+          db.prepare("UPDATE candr_state SET finished_at = ?, next_tile_due_at = NULL WHERE round_id = ?").run(finishedAt, round.id);
+        })();
+
+        const doneEmbed = new EmbedBuilder()
+          .setTitle("🚓 Cops and Robbers Finished")
+          .setColor(0x2ecc71)
+          .setDescription("Round complete. Total C&R time has been registered.")
+          .addFields(
+            { name: "Total Time", value: formatDuration(totalTimeMs), inline: true },
+            { name: "Last Target Tile", value: state?.current_tile ?? "None", inline: true }
+          )
+          .setFooter({ text: `Round ID: ${round.id}` });
+
+        await i.update({ embeds: [doneEmbed], components: [] });
+        candrCollector.stop();
+        return;
+      }
+
+      if (i.isStringSelectMenu() && i.customId.startsWith(`candr_tile_pick_${round.id}_`)) {
+        const state = db.query(
+          "SELECT robber_player_id, current_tile, started_at, next_tile_due_at FROM candr_state WHERE round_id = ? LIMIT 1"
+        ).get(round.id) as { robber_player_id: string; current_tile: string | null; started_at: number; next_tile_due_at: number | null } | null;
+
+        if (!state) {
+          await i.reply({ content: "CANDR state not found for this round.", ephemeral: true });
+          return;
+        }
+
+        if (i.user.id !== state.robber_player_id) {
+          await i.reply({ content: "Only the robber can set the target tile.", ephemeral: true });
+          return;
+        }
+
+        const selectedTileRaw = i.values[0];
+        const selectedTile = selectedTileRaw ? normalizeCandrTile(selectedTileRaw) : null;
+        if (!selectedTile) {
+          await i.reply({ content: "Invalid tile selected.", ephemeral: true });
+          return;
+        }
+
+        const now = Date.now();
+        const dueAt = state.next_tile_due_at ?? now;
+        if (state.current_tile && now < dueAt) {
+          await i.reply({
+            content: `You must wait ${formatDuration(dueAt - now)} before selecting a new tile.`,
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const nextDueAt = now + CANDR_TILE_INTERVAL_MS;
+        db.prepare(
+          "UPDATE candr_state SET previous_tile = current_tile, current_tile = ?, last_tile_at = ?, next_tile_due_at = ? WHERE round_id = ?"
+        ).run(selectedTile, now, nextDueAt, round.id);
+
+        await i.update({
+          embeds: [buildCandrStatusEmbed(round.id, state.robber_player_id, cops, selectedTile, nextDueAt, state.started_at)],
+          components: [finishButtonRow, ...buildCandrTileRows(round.id)],
+        });
+      }
+    });
+
+    return;
+  }
 
   if (isAllSeries) {
     const scoreStmt = db.prepare(

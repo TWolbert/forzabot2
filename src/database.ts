@@ -14,6 +14,7 @@ export function initializeDatabase() {
       year INTEGER,
       status TEXT NOT NULL DEFAULT 'pending',
       restrict_class INTEGER NOT NULL DEFAULT 1,
+      candr_total_time_ms INTEGER,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS players (
@@ -129,6 +130,27 @@ export function initializeDatabase() {
       name TEXT PRIMARY KEY,
       ran_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS candr_state (
+      round_id TEXT PRIMARY KEY,
+      robber_player_id TEXT NOT NULL,
+      current_tile TEXT,
+      previous_tile TEXT,
+      started_at INTEGER NOT NULL,
+      last_tile_at INTEGER,
+      next_tile_due_at INTEGER,
+      finished_at INTEGER,
+      FOREIGN KEY (round_id) REFERENCES rounds (id),
+      FOREIGN KEY (robber_player_id) REFERENCES players (id)
+    );
+    CREATE TABLE IF NOT EXISTS candr_player_roles (
+      round_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      assigned_at INTEGER NOT NULL,
+      PRIMARY KEY (round_id, player_id),
+      FOREIGN KEY (round_id) REFERENCES rounds (id),
+      FOREIGN KEY (player_id) REFERENCES players (id)
+    );
   `);
 
   // Add status column to existing rounds table if it doesn't exist
@@ -155,6 +177,13 @@ export function initializeDatabase() {
   // Add brand column to existing rounds table if it doesn't exist
   try {
     db.exec(`ALTER TABLE rounds ADD COLUMN brand TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  // Add candr_total_time_ms column to existing rounds table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE rounds ADD COLUMN candr_total_time_ms INTEGER`);
   } catch (e) {
     // Column already exists, ignore
   }
@@ -276,6 +305,43 @@ export function initializeDatabase() {
     db.exec(`ALTER TABLE rounds ADD COLUMN created_by TEXT`);
   } catch (e) {
     // Column already exists, ignore
+  }
+
+  // Add CANDR state table if it doesn't exist
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS candr_state (
+        round_id TEXT PRIMARY KEY,
+        robber_player_id TEXT NOT NULL,
+        current_tile TEXT,
+        previous_tile TEXT,
+        started_at INTEGER NOT NULL,
+        last_tile_at INTEGER,
+        next_tile_due_at INTEGER,
+        finished_at INTEGER,
+        FOREIGN KEY (round_id) REFERENCES rounds (id),
+        FOREIGN KEY (robber_player_id) REFERENCES players (id)
+      )
+    `);
+  } catch (e) {
+    // Table already exists, ignore
+  }
+
+  // Add CANDR role assignment table if it doesn't exist
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS candr_player_roles (
+        round_id TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        assigned_at INTEGER NOT NULL,
+        PRIMARY KEY (round_id, player_id),
+        FOREIGN KEY (round_id) REFERENCES rounds (id),
+        FOREIGN KEY (player_id) REFERENCES players (id)
+      )
+    `);
+  } catch (e) {
+    // Table already exists, ignore
   }
 
   // Add player_points_history table if it doesn't exist

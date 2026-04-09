@@ -45,6 +45,12 @@ const commands = [
         type: 5,
         required: false,
       },
+      {
+        name: "preset",
+        description: "Select from a preset list of budget cars",
+        type: 5,
+        required: false,
+      },
     ],
   },
   {
@@ -76,6 +82,7 @@ const commands = [
           { name: "Circuit", value: "circuit" },
           { name: "Drag", value: "drag" },
           { name: "Offroad", value: "offroad" },
+          { name: "Cops And Robbers", value: "candr" },
           { name: "All", value: "all" },
         ],
       },

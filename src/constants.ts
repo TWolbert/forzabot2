@@ -5,7 +5,23 @@ export const RACE_TYPES = [
   "circuit",
   "drag",
   "offroad",
+  "candr",
   "all",
+] as const;
+
+export const CANDR_PRESET_CARS = [
+  "Ford Bronco Raptor 2022",
+  "Hoonigan Ford RS200 Evolution 1986",
+  "Jeep Trailcat 2016",
+  "Ford F-150 Raptor 2017",
+  "Land Rover Defender 110 X 2020",
+  "Mercedes-AMG G 63 6x6 2014",
+  "Toyota GR Supra 2020",
+  "Subaru WRX STI 2015",
+  "Mitsubishi Lancer Evolution X GSR 2008",
+  "Porsche 911 GT3 RS 2019",
+  "Nissan GT-R Black Edition 2012",
+  "BMW M4 Competition Coupé 2021",
 ] as const;
 
 export const CLASS_VALUE_RANGES: Record<(typeof CAR_CLASSES)[number], [number, number]> = {

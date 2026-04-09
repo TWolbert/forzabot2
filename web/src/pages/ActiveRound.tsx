@@ -41,6 +41,24 @@ interface ActiveRoundData {
     status: string
     payout: number
   }>
+  candr?: {
+    robber_player_id?: string
+    robber_name?: string
+    current_tile?: string | null
+    previous_tile?: string | null
+    started_at?: number
+    last_tile_at?: number | null
+    next_tile_due_at?: number | null
+    finished_at?: number | null
+    elapsed_ms?: number
+    total_time_ms?: number | null
+    map_url?: string
+    roles?: Array<{
+      player_id: string
+      display_name: string
+      role: 'robber' | 'cop'
+    }>
+  } | null
 }
 
 interface AuthUser {
@@ -62,10 +80,44 @@ export function ActiveRound() {
   const [betMessage, setBetMessage] = useState<string | null>(null)
   const [betError, setBetError] = useState<string | null>(null)
   const [placingBet, setPlacingBet] = useState(false)
+  const [now, setNow] = useState(Date.now())
   const lastRoundIdRef = useRef<string | null>(null)
   const redirectedRef = useRef(false)
 
   const getConfirmedKey = (carName: string) => `car-image-confirmed-${carName}`
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const formatDuration = (milliseconds: number) => {
+    const safeMs = Math.max(0, milliseconds)
+    const totalSeconds = Math.floor(safeMs / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
+
+  const getTileStyle = (tile?: string | null) => {
+    if (!tile) return null
+    const match = tile.toUpperCase().match(/^([A-G])(\d{1,2})$/)
+    if (!match) return null
+
+    const rowLetter = match[1]
+    const col = Number.parseInt(match[2], 10)
+    if (!rowLetter || Number.isNaN(col) || col < 1 || col > 13) return null
+
+    const rowIndex = rowLetter.charCodeAt(0) - 'A'.charCodeAt(0)
+    if (rowIndex < 0 || rowIndex > 6) return null
+
+    return {
+      left: `${(col / 14) * 100}%`,
+      top: `${((rowIndex + 1) / 8) * 100}%`,
+      width: `${(1 / 14) * 100}%`,
+      height: `${(1 / 8) * 100}%`
+    }
+  }
 
   useEffect(() => {
     const token = readAuthToken()
@@ -333,6 +385,87 @@ export function ActiveRound() {
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border-4 border-orange-500 drop-shadow-2xl text-center">
         <p className="text-gray-400 text-xl font-black">No Active Round</p>
         <p className="text-gray-500 mt-2">Check back when a game is in progress!</p>
+      </div>
+    )
+  }
+
+  if (round.race_type?.toLowerCase() === 'candr') {
+    const candr = round.candr
+    const robberId = candr?.robber_player_id
+    const robber = round.players.find(player => player.id === robberId)
+    const cops = round.players.filter(player => player.id !== robberId)
+    const tileStyle = getTileStyle(candr?.current_tile)
+    const startedAt = candr?.started_at ?? null
+    const elapsed = startedAt ? formatDuration(now - startedAt) : '0:00'
+    const nextTileIn = candr?.next_tile_due_at ? formatDuration(candr.next_tile_due_at - now) : 'Ready'
+
+    return (
+      <div className="rounded-2xl border-2 border-amber-600/70 bg-[radial-gradient(circle_at_top,#6b5b3d_0%,#2f2922_35%,#1b1816_100%)] p-4 md:p-6 text-amber-100 shadow-2xl">
+        <Link
+          to="/"
+          className="mb-4 inline-flex items-center gap-2 rounded-md border border-amber-500/50 bg-black/30 px-3 py-1 text-sm font-bold text-amber-200 hover:bg-black/45"
+        >
+          <ChevronLeft size={16} />
+          Back
+        </Link>
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-400/50 bg-black/40 px-4 py-3">
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-wide text-amber-100">CANDR (COPS AND ROBBERS)</h1>
+          <div className="flex items-center gap-6 text-right">
+            <div>
+              <p className="text-xs uppercase text-amber-300/80">Current Target Tile</p>
+              <p className="text-3xl font-black text-red-400">{candr?.current_tile ?? '---'}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-amber-300/80">Time</p>
+              <p className="text-3xl font-black text-amber-100">{elapsed}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr),280px] gap-4">
+          <div className="rounded-lg border border-amber-500/60 bg-black/35 p-2">
+            <div className="relative overflow-hidden rounded-md border border-amber-400/50">
+              <img
+                src={candr?.map_url || '/api/candr-map'}
+                alt="Cops and Robbers grid map"
+                className="block w-full"
+              />
+              {tileStyle && (
+                <div
+                  className="pointer-events-none absolute bg-red-500/50 ring-2 ring-red-300 shadow-[0_0_25px_rgba(239,68,68,0.55)]"
+                  style={tileStyle}
+                />
+              )}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+              <p className="font-bold text-amber-200">Previous Tile: <span className="text-amber-100">{candr?.previous_tile ?? 'None'}</span></p>
+              <p className="font-bold text-amber-200">Next Tile In: <span className="text-red-300">{nextTileIn}</span></p>
+            </div>
+          </div>
+
+          <aside className="space-y-3">
+            <div className="rounded-lg border border-red-400/60 bg-red-900/20 p-4">
+              <p className="text-xs uppercase text-red-200/90 mb-1">Robber</p>
+              <p className="text-xl font-black text-red-300">{robber?.display_name || candr?.robber_name || 'Unassigned'}</p>
+            </div>
+
+            <div className="rounded-lg border border-blue-400/50 bg-blue-950/20 p-4">
+              <p className="text-xs uppercase text-blue-200/90 mb-2">Cops</p>
+              <div className="space-y-1">
+                {cops.map(cop => (
+                  <p key={cop.id} className="font-bold text-blue-100">{cop.display_name}</p>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-amber-400/50 bg-black/35 p-4">
+              <p className="text-xs uppercase text-amber-300/80 mb-1">Round Budget</p>
+              <p className="text-2xl font-black text-amber-100">{formatCurrency(round.value)}</p>
+              <p className="mt-2 text-xs text-amber-200/80">Players can use preset or custom cars within this budget.</p>
+            </div>
+          </aside>
+        </div>
       </div>
     )
   }

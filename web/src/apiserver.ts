@@ -60,6 +60,27 @@ function initializeApiDatabase() {
       created_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES web_users (id)
     );
+    CREATE TABLE IF NOT EXISTS candr_state (
+      round_id TEXT PRIMARY KEY,
+      robber_player_id TEXT NOT NULL,
+      current_tile TEXT,
+      previous_tile TEXT,
+      started_at INTEGER NOT NULL,
+      last_tile_at INTEGER,
+      next_tile_due_at INTEGER,
+      finished_at INTEGER,
+      FOREIGN KEY (round_id) REFERENCES rounds (id),
+      FOREIGN KEY (robber_player_id) REFERENCES players (id)
+    );
+    CREATE TABLE IF NOT EXISTS candr_player_roles (
+      round_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      assigned_at INTEGER NOT NULL,
+      PRIMARY KEY (round_id, player_id),
+      FOREIGN KEY (round_id) REFERENCES rounds (id),
+      FOREIGN KEY (player_id) REFERENCES players (id)
+    );
   `)
 
   try {
@@ -70,6 +91,12 @@ function initializeApiDatabase() {
 
   try {
     db.exec(`UPDATE players SET points = 100 WHERE points IS NULL`)
+  } catch {
+    // ignore
+  }
+
+  try {
+    db.exec(`ALTER TABLE rounds ADD COLUMN candr_total_time_ms INTEGER`)
   } catch {
     // ignore
   }
@@ -416,6 +443,7 @@ async function getWikipediaCarImage(carName: string, index = 0): Promise<string 
 // Static file serving
 const distPath = join(import.meta.dir, '../dist')
 const carImagesPath = join(import.meta.dir, '../car-images')
+const candrMapPath = join(import.meta.dir, '../../media/cops_and_robbers_map.png')
 
 async function serveStaticFile(pathname: string): Promise<Response | null> {
   try {
@@ -1306,6 +1334,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         r.year,
         r.winner_id,
         p.display_name as winner_name,
+        r.candr_total_time_ms,
         r.created_at
       FROM rounds r
       LEFT JOIN players p ON r.winner_id = p.id
@@ -1339,7 +1368,54 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       ORDER BY rs.points DESC, p.display_name ASC
     `).all(gameId)
 
-    return new Response(JSON.stringify({ ...game, players, scores }), {
+    let candrState: Record<string, unknown> | null = null
+    if ((game as { race_type?: string }).race_type?.toLowerCase() === 'candr') {
+      const state = db.query(`
+        SELECT
+          cs.robber_player_id,
+          rp.display_name as robber_name,
+          cs.current_tile,
+          cs.previous_tile,
+          cs.started_at,
+          cs.last_tile_at,
+          cs.next_tile_due_at,
+          cs.finished_at
+        FROM candr_state cs
+        LEFT JOIN players rp ON cs.robber_player_id = rp.id
+        WHERE cs.round_id = ?
+        LIMIT 1
+      `).get(gameId) as {
+        robber_player_id?: string
+        robber_name?: string
+        current_tile?: string | null
+        previous_tile?: string | null
+        started_at?: number
+        last_tile_at?: number | null
+        next_tile_due_at?: number | null
+        finished_at?: number | null
+      } | null
+
+      const roles = db.query(`
+        SELECT
+          cpr.player_id,
+          p.display_name,
+          cpr.role
+        FROM candr_player_roles cpr
+        JOIN players p ON p.id = cpr.player_id
+        WHERE cpr.round_id = ?
+        ORDER BY p.display_name ASC
+      `).all(gameId)
+
+      if (state) {
+        candrState = {
+          ...state,
+          map_url: '/api/candr-map',
+          roles,
+        }
+      }
+    }
+
+    return new Response(JSON.stringify({ ...game, players, scores, candr: candrState }), {
       headers: { 'Content-Type': 'application/json' }
     })
   },
@@ -1356,6 +1432,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
         r.race_type,
         r.year,
         r.status,
+        r.candr_total_time_ms,
         r.created_at
       FROM rounds r
       WHERE (r.status = 'pending' OR r.status = 'active') AND r.winner_id IS NULL
@@ -1392,6 +1469,57 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       WHERE rs.round_id = ?
       ORDER BY rs.points DESC, p.display_name ASC
     `).all(result.id)
+
+    let candrState: Record<string, unknown> | null = null
+    if (result.race_type?.toLowerCase() === 'candr') {
+      const state = db.query(`
+        SELECT
+          cs.robber_player_id,
+          rp.display_name as robber_name,
+          cs.current_tile,
+          cs.previous_tile,
+          cs.started_at,
+          cs.last_tile_at,
+          cs.next_tile_due_at,
+          cs.finished_at
+        FROM candr_state cs
+        LEFT JOIN players rp ON cs.robber_player_id = rp.id
+        WHERE cs.round_id = ?
+        LIMIT 1
+      `).get(result.id) as {
+        robber_player_id?: string
+        robber_name?: string
+        current_tile?: string | null
+        previous_tile?: string | null
+        started_at?: number
+        last_tile_at?: number | null
+        next_tile_due_at?: number | null
+        finished_at?: number | null
+      } | null
+
+      const roles = db.query(`
+        SELECT
+          cpr.player_id,
+          p.display_name,
+          cpr.role
+        FROM candr_player_roles cpr
+        JOIN players p ON p.id = cpr.player_id
+        WHERE cpr.round_id = ?
+        ORDER BY p.display_name ASC
+      `).all(result.id)
+
+      if (state) {
+        const now = Date.now()
+        const elapsedMs = state.started_at ? Math.max(0, now - state.started_at) : 0
+        candrState = {
+          ...state,
+          elapsed_ms: elapsedMs,
+          total_time_ms: result.candr_total_time_ms ?? null,
+          map_url: '/api/candr-map',
+          roles,
+        }
+      }
+    }
 
     let seriesRace: string | null = null
     if (result.race_type?.toLowerCase() === 'all') {
@@ -1449,9 +1577,28 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
       ORDER BY b.created_at DESC
     `).all(result.id)
 
-    return new Response(JSON.stringify({ ...result, players, scores, series_race: seriesRace, user_bets: userBets, all_bets: allBets }), {
+    return new Response(JSON.stringify({ ...result, players, scores, series_race: seriesRace, user_bets: userBets, all_bets: allBets, candr: candrState }), {
       headers: { 'Content-Type': 'application/json' }
     })
+  },
+
+  '/api/candr-map': async (req) => {
+    if (req.method !== 'GET') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    }
+
+    try {
+      const file = Bun.file(candrMapPath)
+      if (!(await file.exists())) {
+        return new Response(JSON.stringify({ error: 'Map not found' }), { status: 404 })
+      }
+      return new Response(await file.bytes(), {
+        headers: { 'Content-Type': 'image/png' }
+      })
+    } catch (error) {
+      console.error('Failed to serve CANDR map:', error)
+      return new Response(JSON.stringify({ error: 'Failed to load map' }), { status: 500 })
+    }
   },
 
   '/api/bets/current': (req) => {
