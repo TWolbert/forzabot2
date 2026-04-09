@@ -5,6 +5,7 @@ import { db } from "../database";
 
 const CANDR_ROWS = ["A", "B", "C", "D", "E", "F", "G"] as const;
 const CANDR_TILE_INTERVAL_MS = 2 * 60 * 1000;
+const CANDR_GRACE_PERIOD_MS = 1 * 60 * 1000;
 
 const formatDuration = (milliseconds: number): string => {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -70,7 +71,7 @@ const buildCandrStatusEmbed = (
   const embed = new EmbedBuilder()
     .setTitle("🚨 Cops and Robbers Live")
     .setColor(0xcc2b2b)
-    .setDescription("Robber must set a new tile every 2 minutes. The active tile is highlighted red on the live page.")
+    .setDescription("Robber has a 1 minute grace period before setting the first tile, then must update every 2 minutes. The active tile is highlighted red on the live page.")
     .addFields(
       { name: "Robber", value: `<@${robberId}>`, inline: true },
       { name: "Current Target Tile", value: currentTile ?? "Not selected yet", inline: true },
@@ -320,6 +321,15 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
         }
 
         const now = Date.now();
+        const gracePeriodEndAt = state.started_at + CANDR_GRACE_PERIOD_MS;
+        if (now < gracePeriodEndAt) {
+          await i.reply({
+            content: `Robber must wait ${formatDuration(gracePeriodEndAt - now)} before setting the first tile.`,
+            ephemeral: true,
+          });
+          return;
+        }
+
         const dueAt = state.next_tile_due_at ?? now;
         if (state.current_tile && now < dueAt) {
           await i.reply({

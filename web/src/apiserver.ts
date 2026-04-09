@@ -121,6 +121,7 @@ type PointsLogSource =
 const CANDR_ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'] as const
 const CANDR_MAX_COL = 13
 const CANDR_TILE_INTERVAL_MS = 2 * 60 * 1000
+const CANDR_GRACE_PERIOD_MS = 1 * 60 * 1000
 
 const ADMIN_PASSWORD = process.env.POINTS_ADMIN_PASSWORD?.trim() ?? ''
 const ADMIN_SESSION_TTL_MS = 1000 * 60 * 60 * 12
@@ -1234,6 +1235,16 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     }
 
     const now = Date.now()
+    const gracePeriodEndAt = state.started_at + CANDR_GRACE_PERIOD_MS
+    if (now < gracePeriodEndAt) {
+      const remainingMs = gracePeriodEndAt - now
+      const minutes = Math.floor(remainingMs / 60000)
+      const seconds = Math.floor((remainingMs % 60000) / 1000)
+      return new Response(JSON.stringify({
+        error: `Robber must wait ${minutes}:${seconds.toString().padStart(2, '0')} before setting the first tile.`
+      }), { status: 400 })
+    }
+
     const dueAt = state.next_tile_due_at ?? now
     if (state.current_tile && now < dueAt) {
       const remainingMs = dueAt - now
