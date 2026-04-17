@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""
-Robust FH5 car table extractor.
-
-Fixes:
-- Preserves ALL original columns (including car names)
-- Safely removes only the "Lowest PI" column
-- Converts price strings like "4,000,000 CRLEGENDARY" -> 4000000
-- Expands AC / BR / HA acquisition codes only when applicable
-"""
+"""Fetch FH5 car data from a Google Sheet and export autoshow cars to CSV."""
 
 from __future__ import annotations
 
@@ -16,8 +8,13 @@ import re
 import sys
 from pathlib import Path
 from typing import Dict, List
+from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
-from bs4 import BeautifulSoup
+DEFAULT_SHEET_URL = (
+    "https://docs.google.com/spreadsheets/d/"
+    "1yucDOQ2nRaCcC4y4unl72Um7N_pQXuaI6gZqzf0Tl3M/edit?gid=286219065#gid=286219065"
+)
 
 PRICE_RE = re.compile(r"(\d[\d,]*)")
 
@@ -41,9 +38,11 @@ METADATA_MARKERS = (
     "dlc",
 )
 
+OUTPUT_COLUMNS = ["Vehicle", "Value", "PI", "Availability"]
+
 
 def clean_text(text: str) -> str:
-    return " ".join(text.replace("\xa0", " ").split()).strip()
+    return " ".join((text or "").replace("\xa0", " ").split()).strip()
 
 
 def parse_price(value: str) -> str:
@@ -78,6 +77,22 @@ def clean_vehicle_name(value: str) -> str:
     return text
 
 
+def normalize_vehicle_for_bot(vehicle: str, year_value: str) -> str:
+    """Convert '2017 Acura NSX' -> 'Acura NSX 2017' to match existing bot data format."""
+    text = clean_vehicle_name(vehicle)
+    if not text:
+        return text
+
+    match = re.match(r"^(\d{4})\s+(.+)$", text)
+    if not match:
+        return text
+
+    year_from_name, rest = match.groups()
+    year_clean = clean_text(year_value)
+    year = year_clean if year_clean.isdigit() and len(year_clean) == 4 else year_from_name
+    return f"{rest} {year}".strip()
+
+
 def maybe_expand_acquisition(header: str, value: str) -> str:
     """Only expand AC/BR/HA if column name implies acquisition/source."""
     h = header.lower()
@@ -87,141 +102,143 @@ def maybe_expand_acquisition(header: str, value: str) -> str:
     return value
 
 
-def extract_availability_from_name(vehicle_name: str) -> tuple[str, str]:
-    """
-    Extract availability info from vehicle name and return (cleaned_name, availability).
-    
-    The availability information is embedded in metadata markers within the name.
-    Returns a tuple of (cleaned_vehicle_name, availability_info).
-    """
-    text = clean_text(vehicle_name)
-    availability_found = []
-    
-    lower_text = text.lower()
-    for marker in METADATA_MARKERS:
-        if marker in lower_text:
-            availability_found.append(marker)
-    
-    # Clean the name to remove metadata
-    cleaned = clean_vehicle_name(vehicle_name)
-    
-    return cleaned, " / ".join(availability_found) if availability_found else ""
-
-
 def has_autoshow_availability(availability: str) -> bool:
-    """Check if a car is available through autoshow (alone or with other methods)."""
     return "autoshow" in availability.lower()
 
 
-def parse_tables(html: str) -> List[Dict[str, str]]:
-    soup = BeautifulSoup(html, "lxml")
-    tables = soup.find_all("table")
+def sanitize_headers(headers: List[str]) -> List[str]:
+    cleaned: List[str] = []
+    seen: Dict[str, int] = {}
 
+    for idx, raw in enumerate(headers):
+        base = clean_text(raw) or f"column_{idx + 1}"
+        count = seen.get(base, 0) + 1
+        seen[base] = count
+        cleaned.append(base if count == 1 else f"{base}_{count}")
+
+    return cleaned
+
+
+def extract_sheet_id_and_gid(sheet_url: str) -> tuple[str, str]:
+    parsed = urlparse(sheet_url)
+    parts = [p for p in parsed.path.split("/") if p]
+
+    if "spreadsheets" not in parts or "d" not in parts:
+        raise ValueError("Expected a Google Sheets URL (docs.google.com/spreadsheets/d/<id>/...)" )
+
+    d_idx = parts.index("d")
+    if d_idx + 1 >= len(parts):
+        raise ValueError("Could not extract spreadsheet ID from URL")
+
+    sheet_id = parts[d_idx + 1]
+    query = parse_qs(parsed.query)
+    gid = query.get("gid", [""])[0]
+
+    if not gid and parsed.fragment.startswith("gid="):
+        gid = parsed.fragment.split("=", 1)[1]
+
+    return sheet_id, gid or "0"
+
+
+def to_export_csv_url(sheet_url: str) -> str:
+    sheet_id, gid = extract_sheet_id_and_gid(sheet_url)
+    return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+
+
+def download_csv(sheet_url: str) -> str:
+    export_url = to_export_csv_url(sheet_url)
+    request = Request(
+        export_url,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; forzabot2 scraper/1.0)"},
+    )
+
+    with urlopen(request) as response:
+        data = response.read()
+
+    return data.decode("utf-8-sig", errors="ignore")
+
+
+def parse_google_sheet_rows(csv_text: str) -> List[Dict[str, str]]:
+    reader = csv.reader(csv_text.splitlines())
+    rows = list(reader)
+    if not rows:
+        return []
+
+    headers = sanitize_headers(rows[0])
     all_rows: List[Dict[str, str]] = []
 
-    for table_idx, table in enumerate(tables):
-        rows = table.find_all("tr")
-        if not rows:
+    for raw_row in rows[1:]:
+        if not any(clean_text(v) for v in raw_row):
             continue
 
-        headers = [clean_text(c.get_text()) for c in rows[0].find_all(["th", "td"])]
+        if len(raw_row) < len(headers):
+            raw_row += [""] * (len(headers) - len(raw_row))
+        elif len(raw_row) > len(headers):
+            raw_row = raw_row[: len(headers)]
 
-        # Identify index of "Lowest PI" safely
-        drop_indices = {i for i, h in enumerate(headers) if h.lower() == "lowest pi"}
+        row = {
+            header: maybe_expand_acquisition(header, clean_text(value))
+            for header, value in zip(headers, raw_row)
+        }
 
-        filtered_headers = [h for i, h in enumerate(headers) if i not in drop_indices]
-
-        if not any(filtered_headers):
+        vehicle_raw = row.get("Year Makes: 134 Models: 902") or row.get("Vehicle") or row.get("Car") or ""
+        vehicle = normalize_vehicle_for_bot(vehicle_raw, row.get("Year", ""))
+        if not vehicle:
             continue
 
-        for tr in rows[1:]:
-            cells = [clean_text(c.get_text()) for c in tr.find_all(["td", "th"])]
-            if not cells:
-                continue
+        raw_price = row.get("Car Value") or row.get("Value") or ""
+        value = parse_price(raw_price)
 
-            # Keep alignment by skipping only the exact column index
-            filtered_cells = [
-                cell for i, cell in enumerate(cells) if i not in drop_indices
-            ]
+        availability_parts: List[str] = []
+        for key in ("Special Access", "Special Reward/Gift", "Direct Access"):
+            part = clean_text(row.get(key, ""))
+            if part:
+                availability_parts.append(part.lower())
+        availability = " / ".join(availability_parts)
 
-            # Normalize row length
-            if len(filtered_cells) < len(filtered_headers):
-                filtered_cells += [""] * (len(filtered_headers) - len(filtered_cells))
-            elif len(filtered_cells) > len(filtered_headers):
-                filtered_cells = filtered_cells[: len(filtered_headers)]
+        if not has_autoshow_availability(availability):
+            continue
 
-            row_dict: Dict[str, str] = {}
-            vehicle_availability = ""
+        pi = clean_text(row.get("PI", ""))
 
-            for header, value in zip(filtered_headers, filtered_cells):
-                val = value
-
-                if header.lower() in ("vehicle", "car"):
-                    # Extract availability info from the vehicle name BEFORE cleaning
-                    cleaned_vehicle, vehicle_availability = extract_availability_from_name(val)
-                    val = cleaned_vehicle
-
-                # Clean price-like values only if they contain CR
-                if "cr" in value.lower():
-                    val = parse_price(value)
-
-                # Expand AC/BR/HA only in correct columns
-                val = maybe_expand_acquisition(header, val)
-
-                row_dict[header] = val
-
-            # Filter to only include cars available through autoshow
-            if not has_autoshow_availability(vehicle_availability):
-                continue
-
-            row_dict["_table_index"] = str(table_idx)
-            
-            # Add availability information as a separate column
-            if vehicle_availability:
-                row_dict["Availability"] = vehicle_availability
-            
-            all_rows.append(row_dict)
+        all_rows.append(
+            {
+                "Vehicle": vehicle,
+                "Value": value,
+                "PI": pi,
+                "Availability": availability,
+            }
+        )
 
     return all_rows
 
 
 def write_csv(rows: List[Dict[str, str]], output_path: Path) -> None:
     if not rows:
-        raise ValueError("No data extracted from HTML tables.")
-
-    # Collect all unique headers from the data
-    all_headers = {k for r in rows for k in r.keys()}
-    
-    # Define the preferred column order to match original format
-    preferred_order = [
-        "Ac", "Br", "Cars", "Ha", "Highest PI", "La", "Of", "PI", "Sp", "Value", 
-        "Vehicle", "_table_index", "▼Car Lists", "🌍", "📅", "🔓", "🦄", "Availability"
-    ]
-    
-    # Preserve preferred order for columns that should be first, then add any remaining
-    ordered_headers = [h for h in preferred_order if h in all_headers]
-    remaining_headers = sorted(all_headers - set(ordered_headers))
-    final_headers = ordered_headers + remaining_headers
+        raise ValueError("No autoshow cars found in Google Sheet data.")
 
     with output_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=final_headers)
+        writer = csv.DictWriter(f, fieldnames=OUTPUT_COLUMNS)
         writer.writeheader()
         writer.writerows(rows)
 
 
 def main() -> None:
-    if len(sys.argv) < 3:
-        print("Usage: python extract_cars.py <input.html> <output.csv>")
+    if len(sys.argv) < 2:
+        print(
+            "Usage: python scraper.py <output.csv> [google_sheet_url]\n"
+            f"Default URL: {DEFAULT_SHEET_URL}"
+        )
         sys.exit(1)
 
-    html_path = Path(sys.argv[1])
-    out_path = Path(sys.argv[2])
+    out_path = Path(sys.argv[1])
+    sheet_url = sys.argv[2] if len(sys.argv) >= 3 else DEFAULT_SHEET_URL
 
-    html = html_path.read_text(encoding="utf-8", errors="ignore")
-    rows = parse_tables(html)
+    csv_text = download_csv(sheet_url)
+    rows = parse_google_sheet_rows(csv_text)
     write_csv(rows, out_path)
 
-    print(f"[+] Extracted {len(rows)} rows -> {out_path}")
+    print(f"[+] Extracted {len(rows)} autoshow rows -> {out_path}")
 
 
 if __name__ == "__main__":
