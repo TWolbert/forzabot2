@@ -106,6 +106,16 @@ def has_autoshow_availability(availability: str) -> bool:
     return "autoshow" in availability.lower()
 
 
+def format_pi(class_value: str, pi_value: str) -> str:
+    """Normalize PI to expected bot format (e.g. D131, S1831)."""
+    class_code = clean_text(class_value).upper().replace(" ", "")
+    pi_digits = re.sub(r"\D", "", clean_text(pi_value))
+
+    if class_code and pi_digits:
+        return f"{class_code}{pi_digits}"
+    return clean_text(pi_value)
+
+
 def sanitize_headers(headers: List[str]) -> List[str]:
     cleaned: List[str] = []
     seen: Dict[str, int] = {}
@@ -199,7 +209,7 @@ def parse_google_sheet_rows(csv_text: str) -> List[Dict[str, str]]:
         if not has_autoshow_availability(availability):
             continue
 
-        pi = clean_text(row.get("PI", ""))
+        pi = format_pi(row.get("Class", ""), row.get("PI", ""))
 
         all_rows.append(
             {
