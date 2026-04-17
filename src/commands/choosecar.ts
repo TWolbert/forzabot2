@@ -351,6 +351,13 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
         { name: "Remaining Upgrades", value: `$${remainingBudget.toLocaleString("en-US")}`, inline: true },
       ]);
 
+    if (selectedCarData?.availability?.toLowerCase().includes("dlc")) {
+      finalEmbed.addFields({
+        name: "⚠ DLC Warning",
+        value: "this car is dlc, you might not be able to use it",
+      });
+    }
+
     if (balancingAnchorCar) {
       finalEmbed.addFields({
         name: "Balance Anchor",
