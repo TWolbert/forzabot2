@@ -13,7 +13,7 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
   const raceType = chosenRaceType ?? pickRandom(RACE_TYPES);
   const year = interaction.options.getInteger("year");
   const brand = interaction.options.getString("brand")?.trim();
-  let [minValue, maxValue] = restrictClass ? CLASS_VALUE_RANGES[carClass] : [50_000, 500_000];
+  let [minValue, maxValue] = restrictClass ? CLASS_VALUE_RANGES[carClass] : [25_000, 20_000_000];
 
   if (brand) {
     const allCars = await loadCarData();

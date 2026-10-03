@@ -1,0 +1,17 @@
+services:
+  forzabot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DASHBOARD_PORT: "8080"
+      DATABASE_PATH: /data/forzabot.db
+      CAR_IMAGES_PATH: /data/car-images
+    ports:
+      - "8080:8080"
+    volumes:
+      - forzabot-data:/data
+
+volumes:
+  forzabot-data:

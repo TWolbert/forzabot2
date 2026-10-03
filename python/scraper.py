@@ -1,254 +1,128 @@
 #!/usr/bin/env python3
-"""Fetch FH5 car data from a Google Sheet and export autoshow cars to CSV."""
+"""Fetch the FH6 car list from Forza Wiki and export it for ForzaBot."""
 
 from __future__ import annotations
 
 import csv
 import re
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
-from typing import Dict, List
-from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
-DEFAULT_SHEET_URL = (
-    "https://docs.google.com/spreadsheets/d/"
-    "1yucDOQ2nRaCcC4y4unl72Um7N_pQXuaI6gZqzf0Tl3M/edit?gid=286219065#gid=286219065"
-)
-
-PRICE_RE = re.compile(r"(\d[\d,]*)")
-
-ACQUISITION_MAP = {
-    "AC": "Arcade / Horizon Arcade",
-    "BR": "Barn Find Reward",
-    "HA": "Horizon Adventure Unlock",
-}
-
-METADATA_MARKERS = (
-    "autoshow",
-    "wheelspin",
-    "gifted",
-    "barn find",
-    "car mastery",
-    "car collector",
-    "accolade",
-    "promotional",
-    "car pass",
-    "horizon raptors",
-    "dlc",
-)
-
+SOURCE_URL = "https://forza.fandom.com/wiki/Forza_Horizon_6/Cars"
 OUTPUT_COLUMNS = ["Vehicle", "Value", "PI", "Availability"]
+PI_RE = re.compile(r"\b(D|C|B|A|S[12]|R|X)\s*(\d{3})\b", re.I)
+PRICE_RE = re.compile(r"([\d,]+)\s*(?:CR|credits?)", re.I)
+YEAR_RE = re.compile(r"((?:19|20)\d{2})")
 
 
-def clean_text(text: str) -> str:
-    return " ".join((text or "").replace("\xa0", " ").split()).strip()
+def clean_text(value: str) -> str:
+    return " ".join(value.replace("\xa0", " ").split()).strip()
 
 
-def parse_price(value: str) -> str:
-    """Extract integer from price-like strings."""
-    match = PRICE_RE.search(value)
-    if not match:
-        return value
-    return match.group(1).replace(",", "")
+class WikiTableParser(HTMLParser):
+    """Collect HTML table rows while preserving each cell as plain text."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.rows: list[list[str]] = []
+        self._row: list[str] | None = None
+        self._cell: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "tr":
+            self._row = []
+        elif tag in ("td", "th") and self._row is not None:
+            self._cell = []
+        elif tag == "br" and self._cell is not None:
+            self._cell.append(" ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in ("td", "th") and self._row is not None and self._cell is not None:
+            self._row.append(clean_text("".join(self._cell)))
+            self._cell = None
+        elif tag == "tr" and self._row is not None:
+            if self._row:
+                self.rows.append(self._row)
+            self._row = None
+
+    def handle_data(self, data: str) -> None:
+        if self._cell is not None:
+            self._cell.append(data)
 
 
-def clean_vehicle_name(value: str) -> str:
-    text = clean_text(value)
-    if not text:
-        return text
+def parse_car_rows(html: str) -> list[dict[str, str]]:
+    parser = WikiTableParser()
+    parser.feed(html)
+    cars: dict[str, dict[str, str]] = {}
 
-    text = re.sub(r"\(.*?\)", "", text)
-    text = re.sub(r'".*?"', "", text)
+    for cells in parser.rows:
+        if len(cells) < 8:
+            continue
+        first_cell = clean_text(cells[0])
+        year_matches = list(YEAR_RE.finditer(first_cell))
+        if not year_matches:
+            continue
+        # The wiki appends availability directly after the model year, and some
+        # model names themselves contain a four-digit number (for example BMW 2002).
+        year_match = year_matches[-1]
 
-    lower_text = text.lower()
-    cut_index = None
-    for marker in METADATA_MARKERS:
-        idx = lower_text.find(marker)
-        if idx != -1:
-            cut_index = idx if cut_index is None else min(cut_index, idx)
-
-    if cut_index is not None:
-        text = text[:cut_index]
-
-    text = text.replace(" ,", ",")
-    text = re.sub(r"\s+,", ",", text)
-    text = re.sub(r"\s+", " ", text).strip(" ,")
-    return text
-
-
-def normalize_vehicle_for_bot(vehicle: str, year_value: str) -> str:
-    """Convert '2017 Acura NSX' -> 'Acura NSX 2017' to match existing bot data format."""
-    text = clean_vehicle_name(vehicle)
-    if not text:
-        return text
-
-    match = re.match(r"^(\d{4})\s+(.+)$", text)
-    if not match:
-        return text
-
-    year_from_name, rest = match.groups()
-    year_clean = clean_text(year_value)
-    year = year_clean if year_clean.isdigit() and len(year_clean) == 4 else year_from_name
-    return f"{rest} {year}".strip()
-
-
-def maybe_expand_acquisition(header: str, value: str) -> str:
-    """Only expand AC/BR/HA if column name implies acquisition/source."""
-    h = header.lower()
-    if any(k in h for k in ("source", "unlock", "acquisition", "obtained")):
-        key = value.strip().upper()
-        return ACQUISITION_MAP.get(key, value)
-    return value
-
-
-def has_autoshow_availability(availability: str) -> bool:
-    return "autoshow" in availability.lower()
-
-
-def format_pi(class_value: str, pi_value: str) -> str:
-    """Normalize PI to expected bot format (e.g. D131, S1831)."""
-    class_code = clean_text(class_value).upper().replace(" ", "")
-    pi_digits = re.sub(r"\D", "", clean_text(pi_value))
-
-    if class_code and pi_digits:
-        return f"{class_code}{pi_digits}"
-    return clean_text(pi_value)
-
-
-def sanitize_headers(headers: List[str]) -> List[str]:
-    cleaned: List[str] = []
-    seen: Dict[str, int] = {}
-
-    for idx, raw in enumerate(headers):
-        base = clean_text(raw) or f"column_{idx + 1}"
-        count = seen.get(base, 0) + 1
-        seen[base] = count
-        cleaned.append(base if count == 1 else f"{base}_{count}")
-
-    return cleaned
-
-
-def extract_sheet_id_and_gid(sheet_url: str) -> tuple[str, str]:
-    parsed = urlparse(sheet_url)
-    parts = [p for p in parsed.path.split("/") if p]
-
-    if "spreadsheets" not in parts or "d" not in parts:
-        raise ValueError("Expected a Google Sheets URL (docs.google.com/spreadsheets/d/<id>/...)" )
-
-    d_idx = parts.index("d")
-    if d_idx + 1 >= len(parts):
-        raise ValueError("Could not extract spreadsheet ID from URL")
-
-    sheet_id = parts[d_idx + 1]
-    query = parse_qs(parsed.query)
-    gid = query.get("gid", [""])[0]
-
-    if not gid and parsed.fragment.startswith("gid="):
-        gid = parsed.fragment.split("=", 1)[1]
-
-    return sheet_id, gid or "0"
-
-
-def to_export_csv_url(sheet_url: str) -> str:
-    sheet_id, gid = extract_sheet_id_and_gid(sheet_url)
-    return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-
-
-def download_csv(sheet_url: str) -> str:
-    export_url = to_export_csv_url(sheet_url)
-    request = Request(
-        export_url,
-        headers={"User-Agent": "Mozilla/5.0 (compatible; forzabot2 scraper/1.0)"},
-    )
-
-    with urlopen(request) as response:
-        data = response.read()
-
-    return data.decode("utf-8-sig", errors="ignore")
-
-
-def parse_google_sheet_rows(csv_text: str) -> List[Dict[str, str]]:
-    reader = csv.reader(csv_text.splitlines())
-    rows = list(reader)
-    if not rows:
-        return []
-
-    headers = sanitize_headers(rows[0])
-    all_rows: List[Dict[str, str]] = []
-
-    for raw_row in rows[1:]:
-        if not any(clean_text(v) for v in raw_row):
+        vehicle = clean_text(first_cell[: year_match.start()])
+        year = year_match.group(1)
+        availability = clean_text(first_cell[year_match.end() :]).strip(" \"'") or "unknown"
+        price_match = next((match for cell in cells for match in [PRICE_RE.search(cell)] if match), None)
+        pi_match = next((match for cell in reversed(cells) for match in [PI_RE.search(cell)] if match), None)
+        if not vehicle or not pi_match:
             continue
 
-        if len(raw_row) < len(headers):
-            raw_row += [""] * (len(headers) - len(raw_row))
-        elif len(raw_row) > len(headers):
-            raw_row = raw_row[: len(headers)]
-
-        row = {
-            header: maybe_expand_acquisition(header, clean_text(value))
-            for header, value in zip(headers, raw_row)
+        # The wiki lists the model year in the first cell; bot search expects it at the end.
+        name = f"{vehicle} {year}"
+        pi = f"{pi_match.group(1).upper()}{pi_match.group(2)}"
+        cars[name] = {
+            "Vehicle": name,
+            "Value": price_match.group(1).replace(",", "") if price_match else "0",
+            "PI": pi,
+            "Availability": availability,
         }
 
-        vehicle_raw = row.get("Year Makes: 134 Models: 902") or row.get("Vehicle") or row.get("Car") or ""
-        vehicle = normalize_vehicle_for_bot(vehicle_raw, row.get("Year", ""))
-        if not vehicle:
-            continue
-
-        raw_price = row.get("Car Value") or row.get("Value") or ""
-        value = parse_price(raw_price)
-
-        availability_parts: List[str] = []
-        for key in ("Special Access", "Special Reward/Gift", "Direct Access"):
-            part = clean_text(row.get(key, ""))
-            if part:
-                availability_parts.append(part.lower())
-        availability = " / ".join(availability_parts)
-
-        if not has_autoshow_availability(availability):
-            continue
-
-        pi = format_pi(row.get("Class", ""), row.get("PI", ""))
-
-        all_rows.append(
-            {
-                "Vehicle": vehicle,
-                "Value": value,
-                "PI": pi,
-                "Availability": availability,
-            }
-        )
-
-    return all_rows
+    return sorted(cars.values(), key=lambda car: car["Vehicle"].casefold())
 
 
-def write_csv(rows: List[Dict[str, str]], output_path: Path) -> None:
+def download_html() -> str:
+    request = Request(
+        SOURCE_URL,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.google.com/",
+            "DNT": "1",
+            "Upgrade-Insecure-Requests": "1",
+        },
+    )
+    with urlopen(request, timeout=30) as response:
+        return response.read().decode("utf-8", errors="replace")
+
+
+def write_csv(rows: list[dict[str, str]], output_path: Path) -> None:
     if not rows:
-        raise ValueError("No autoshow cars found in Google Sheet data.")
-
-    with output_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=OUTPUT_COLUMNS)
+        raise ValueError("No FH6 cars with a year and PI were found on Forza Wiki.")
+    with output_path.open("w", newline="", encoding="utf-8") as output:
+        writer = csv.DictWriter(output, fieldnames=OUTPUT_COLUMNS, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print(
-            "Usage: python scraper.py <output.csv> [google_sheet_url]\n"
-            f"Default URL: {DEFAULT_SHEET_URL}"
-        )
-        sys.exit(1)
-
-    out_path = Path(sys.argv[1])
-    sheet_url = sys.argv[2] if len(sys.argv) >= 3 else DEFAULT_SHEET_URL
-
-    csv_text = download_csv(sheet_url)
-    rows = parse_google_sheet_rows(csv_text)
-    write_csv(rows, out_path)
-
-    print(f"[+] Extracted {len(rows)} autoshow rows -> {out_path}")
+    output_path = Path(sys.argv[1] if len(sys.argv) > 1 else "output.csv")
+    rows = parse_car_rows(download_html())
+    write_csv(rows, output_path)
+    print(f"Wrote {len(rows)} FH6 cars to {output_path}")
 
 
 if __name__ == "__main__":

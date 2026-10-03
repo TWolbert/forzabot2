@@ -117,7 +117,7 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
 
   const isAllSeries = round.race_type.toLowerCase() === 'all';
   const isCandr = round.race_type.toLowerCase() === 'candr';
-  const raceSequence = ['drag', 'circuit', 'rally', 'goliath'];
+  const raceSequence = ['drag', 'road', 'dirt', 'cross-country'];
 
   // Get players for this round
   const roundPlayers = db.query(
@@ -482,8 +482,8 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
     if (isGoliath) {
       const topScore = Math.max(...totalScores.values());
       const topPlayers = [...totalScores.entries()].filter(([, points]) => points === topScore);
-      if (topPlayers.length > 1 && !sequence.includes('offroad')) {
-        sequence = [...sequence, 'offroad'];
+      if (topPlayers.length > 1 && !sequence.includes('cross-country')) {
+        sequence = [...sequence, 'cross-country'];
       }
     }
 

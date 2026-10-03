@@ -16,7 +16,7 @@ except ImportError as exc:
         "Pillow is required. Install with: pip install pillow"
     ) from exc
 
-CLASSES = ["D", "C", "B", "A", "S1", "S2"]
+CLASSES = ["D", "C", "B", "A", "S1", "S2", "R", "X"]
 COLORS: Dict[str, str] = {
     "D": "#3dbaea",
     "C": "#f6bf31",

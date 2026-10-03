@@ -57,7 +57,7 @@ export function Games() {
   }
 
   const formatRaceType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1)
+    return type.replace(/-/g, ' ').replace(/\b\w/g, character => character.toUpperCase())
   }
 
   if (loading) {
@@ -165,11 +165,11 @@ export function GameDetail() {
   }
 
   const formatRaceType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1)
+    return type.replace(/-/g, ' ').replace(/\b\w/g, character => character.toUpperCase())
   }
 
   const formatCurrency = (value: number) => {
-    return `$${(value / 1000).toFixed(0)}k`
+    return `${(value / 1000).toFixed(0)}k CR`
   }
 
   if (loading) {

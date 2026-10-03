@@ -87,7 +87,7 @@ export function PlayerDetail() {
   }
 
   const formatRaceType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1)
+    return type.replace(/-/g, ' ').replace(/\b\w/g, character => character.toUpperCase())
   }
 
   const carStats = useMemo(() => {

@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 
 // Initialize database connection
 // Resolve to repo root so the API writes to the shared DB
-const dbPath = join(import.meta.dir, '../../forzabot.db')
+const dbPath = process.env.DATABASE_PATH || join(import.meta.dir, '../../forzabot.db')
 console.log(`Connecting to database at: ${dbPath}`)
 
 let db: Database
@@ -423,7 +423,7 @@ async function getFandomCarImage(carName: string, index = 0): Promise<string | n
     const searchUrl = new URL(baseUrl)
     searchUrl.searchParams.set("action", "query")
     searchUrl.searchParams.set("list", "search")
-    searchUrl.searchParams.set("srsearch", carName)
+    searchUrl.searchParams.set("srsearch", `${carName} Forza Horizon 6`)
     searchUrl.searchParams.set("srlimit", "10")
     searchUrl.searchParams.set("format", "json")
 
@@ -510,7 +510,7 @@ async function getWikipediaCarImage(carName: string, index = 0): Promise<string 
 
 // Static file serving
 const distPath = join(import.meta.dir, '../dist')
-const carImagesPath = join(import.meta.dir, '../car-images')
+const carImagesPath = process.env.CAR_IMAGES_PATH || join(import.meta.dir, '../car-images')
 const candrMapPath = join(import.meta.dir, '../../media/cops_and_robbers_map.png')
 
 async function serveStaticFile(pathname: string): Promise<Response | null> {
@@ -1699,7 +1699,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
 
     let seriesRace: string | null = null
     if (result.race_type?.toLowerCase() === 'all') {
-      const baseSequence = ['drag', 'circuit', 'rally', 'goliath']
+      const baseSequence = ['drag', 'road', 'dirt', 'cross-country']
       const completed = db.query(
         "SELECT COUNT(DISTINCT race_index) as count FROM round_race_results WHERE round_id = ?"
       ).get(result.id) as { count?: number } | null
@@ -1716,7 +1716,7 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
             "SELECT COUNT(*) as tied FROM round_scores WHERE round_id = ? AND points = ?"
           ).get(result.id, topScore.points) as { tied?: number } | null
           if ((tied?.tied ?? 0) > 1) {
-            seriesRace = 'offroad'
+            seriesRace = 'cross-country'
           }
         }
       }

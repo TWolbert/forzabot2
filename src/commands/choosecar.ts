@@ -32,8 +32,13 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
 
   // Get the most recent pending or active round
   const round = db.query(
-    "SELECT id, value, year, brand FROM rounds WHERE status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1"
-  ).get() as { id: string; value: number; year?: number | null; brand?: string | null } | null;
+    "SELECT id, value, year, brand, class, restrict_class FROM rounds WHERE status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1"
+  ).get() as { id: string; value: number; year?: number | null; brand?: string | null; class: string; restrict_class: number } | null;
+
+  const matchesRoundClass = (car: { pi?: string }) => {
+    if (!round?.restrict_class) return true;
+    return parsePi(car.pi)?.classCode === round.class;
+  };
 
   const maxValue = round?.value;
 
@@ -45,8 +50,9 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
 
     const allCars = await loadCarData();
     const affordableCars = allCars
-      .filter(car => car.availability?.includes("autoshow"))
+      .filter(car => car.value > 0)
       .filter(car => !maxValue || car.value <= maxValue)
+      .filter(matchesRoundClass)
       .filter(car => !round.brand || matchesBrandName(car.name, round.brand))
       .filter(car => {
         if (round.year) {
@@ -99,7 +105,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     const options = presetCars.slice(0, 25).map((car) => ({
       label: car.name.length > 100 ? `${car.name.slice(0, 97)}...` : car.name,
       value: car.name,
-      description: `${car.pi ?? "N/A"} • $${car.value.toLocaleString("en-US")}`,
+      description: `${car.pi ?? "N/A"} • ${car.value.toLocaleString("en-US")} CR`,
     }));
 
     const embed = new EmbedBuilder()
@@ -107,7 +113,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       .setDescription(`Choose one preset car for round ${round.id}.`)
       .setColor(0x5865f2)
       .addFields(
-        { name: "Round Budget", value: `$${round.value.toLocaleString("en-US")}`, inline: true },
+        { name: "Round Budget", value: `${round.value.toLocaleString("en-US")} CR`, inline: true },
         { name: "Available Presets", value: options.length.toString(), inline: true }
       );
 
@@ -154,8 +160,8 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
         .setColor(0x00c853)
         .addFields([
           { name: "Performance Index", value: selectedData.pi || "N/A", inline: true },
-          { name: "Car Price", value: `$${selectedData.value.toLocaleString("en-US")}`, inline: true },
-          { name: "Remaining Upgrades", value: `$${remainingBudget.toLocaleString("en-US")}`, inline: true },
+          { name: "Car Price", value: `${selectedData.value.toLocaleString("en-US")} CR`, inline: true },
+          { name: "Remaining Upgrades", value: `${remainingBudget.toLocaleString("en-US")} CR`, inline: true },
         ]);
 
       if (imageUrl) {
@@ -191,8 +197,9 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     // Load all cars and filter by budget and year
     const allCars = await loadCarData();
     let validCars = allCars
-      .filter(car => car.availability?.includes("autoshow"))
+      .filter(car => car.value > 0)
       .filter(car => !randomMaxValue || car.value <= randomMaxValue)
+      .filter(matchesRoundClass)
       .filter(car => !round?.brand || matchesBrandName(car.name, round.brand))
       .filter(car => {
         // If round has a year, filter to year ± 10
@@ -211,13 +218,14 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     let carsAfterExcludingChosen = validCars.filter(car => !alreadyChosenSet.has(car.name));
 
     // If no cars left after excluding already chosen ones, widen balancing
-    let hadToWidenForAvailability = false;
+    let hadToWidenForYear = false;
     if (carsAfterExcludingChosen.length === 0) {
-      hadToWidenForAvailability = true;
-      // Fall back to all cars with just budget and brand constraints
+      hadToWidenForYear = true;
+      // Fall back to the round's class, budget, and brand constraints without its year filter.
       carsAfterExcludingChosen = allCars
-        .filter(car => car.availability?.includes("autoshow"))
+        .filter(car => car.value > 0)
         .filter(car => !randomMaxValue || car.value <= randomMaxValue)
+        .filter(matchesRoundClass)
         .filter(car => !round?.brand || matchesBrandName(car.name, round.brand))
         .filter(car => !alreadyChosenSet.has(car.name));
     }
@@ -231,7 +239,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     let balancingAnchorCar: typeof validCars[number] | null = null;
 
     // Only apply strict balancing if we didn't have to widen for availability
-    if (firstRandomChoice && !hadToWidenForAvailability) {
+    if (firstRandomChoice && !hadToWidenForYear) {
       balancingAnchorCar = allCars.find((car) => car.name === firstRandomChoice.car_name) ?? null;
 
       if (balancingAnchorCar) {
@@ -270,7 +278,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
             if (!carPi) return false;
             
             // Allow same class or adjacent classes (e.g., A -> S1, B, or A; S1 -> S2 or A)
-            const classOrder = ['D', 'C', 'B', 'A', 'S1', 'S2', 'X'];
+            const classOrder = ['D', 'C', 'B', 'A', 'S1', 'S2', 'R', 'X'];
             const anchorIdx = classOrder.indexOf(anchorPi.classCode);
             const carIdx = classOrder.indexOf(carPi.classCode);
             
@@ -283,13 +291,13 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
           }
         }
       }
-    } else if (firstRandomChoice && hadToWidenForAvailability) {
-      // If we had to widen availability, apply ultra-relaxed balancing
+    } else if (firstRandomChoice && hadToWidenForYear) {
+      // If we widened the year constraint, apply ultra-relaxed balancing.
       balancingAnchorCar = allCars.find((car) => car.name === firstRandomChoice.car_name) ?? null;
       
       if (balancingAnchorCar) {
         const anchorPi = parsePi(balancingAnchorCar.pi);
-        // Ultra-wide price tolerance when availability was constrained
+        // Ultra-wide price tolerance after widening the year constraint.
         const ultraTolerance = Math.max(100_000, Math.round(balancingAnchorCar.value * 1.0));
         const ultraMinValue = Math.max(0, balancingAnchorCar.value - ultraTolerance);
         const ultraMaxValue = Math.min(randomMaxValue ?? Number.MAX_SAFE_INTEGER, balancingAnchorCar.value + ultraTolerance);
@@ -307,11 +315,11 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
 
     if (validCars.length === 0) {
       const constraints = [];
-      if (maxValue) constraints.push(`$${maxValue.toLocaleString("en-US")} budget`);
-      if (randomMaxValue) constraints.push(`random cap $${randomMaxValue.toLocaleString("en-US")} (20% upgrade room)`);
-      if (round?.year && !hadToWidenForAvailability) constraints.push(`years ${round.year - 10}-${round.year + 10}`);
+      if (maxValue) constraints.push(`${maxValue.toLocaleString("en-US")} CR budget`);
+      if (randomMaxValue) constraints.push(`random cap ${randomMaxValue.toLocaleString("en-US")} CR (20% upgrade room)`);
+      if (round?.year && !hadToWidenForYear) constraints.push(`years ${round.year - 10}-${round.year + 10}`);
       if (round?.brand) constraints.push(`brand ${round.brand}`);
-      if (balancingAnchorCar && !hadToWidenForAvailability) constraints.push(`balance range near ${balancingAnchorCar.name}`);
+      if (balancingAnchorCar && !hadToWidenForYear) constraints.push(`balance range near ${balancingAnchorCar.name}`);
       const alreadyChosen = alreadyChosenSet.size > 0 ? ` (${alreadyChosenSet.size} cars already chosen)` : "";
       const description = `No cars found within ${constraints.join(" and ")}${constraints.length > 0 ? "." : "budget."}${alreadyChosen}`;
       await interaction.reply({ 
@@ -347,8 +355,8 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
       .setColor(0x9b59b6)
       .addFields([
         { name: "Performance Index", value: selectedCarData?.pi || "N/A", inline: true },
-        { name: "Car Price", value: `$${(selectedCarData?.value || 0).toLocaleString("en-US")}`, inline: true },
-        { name: "Remaining Upgrades", value: `$${remainingBudget.toLocaleString("en-US")}`, inline: true },
+        { name: "Car Price", value: `${(selectedCarData?.value || 0).toLocaleString("en-US")} CR`, inline: true },
+        { name: "Remaining Upgrades", value: `${remainingBudget.toLocaleString("en-US")} CR`, inline: true },
       ]);
 
     if (selectedCarData?.availability?.toLowerCase().includes("dlc")) {
@@ -361,7 +369,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
     if (balancingAnchorCar) {
       finalEmbed.addFields({
         name: "Balance Anchor",
-        value: `${balancingAnchorCar.name} (${balancingAnchorCar.pi || "N/A"}, $${balancingAnchorCar.value.toLocaleString("en-US")})`,
+        value: `${balancingAnchorCar.name} (${balancingAnchorCar.pi || "N/A"}, ${balancingAnchorCar.value.toLocaleString("en-US")} CR)`,
       });
     }
 
@@ -381,18 +389,21 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
   const carDataMap = new Map(allCarData.map(car => [car.name, car]));
 
   const filteredResults = results.filter((carName) => {
+    const carData = carDataMap.get(carName);
+    if (!carData || !matchesRoundClass(carData)) return false;
     if (!round?.brand) return true;
     return matchesBrandName(carName, round.brand);
   });
 
   if (filteredResults.length === 0) {
     const brandSuffix = round?.brand ? ` for brand "${round.brand}"` : "";
+    const classSuffix = round?.restrict_class ? ` in ${round.class} class` : "";
     const emptyEmbed = new EmbedBuilder()
       .setTitle("No cars found")
       .setDescription(
         maxValue 
-          ? `No cars found for "${query}"${brandSuffix} within $${maxValue.toLocaleString("en-US")} budget.`
-          : `No cars found for "${query}"${brandSuffix}.`
+          ? `No cars found for "${query}"${brandSuffix}${classSuffix} within ${maxValue.toLocaleString("en-US")} CR budget.`
+          : `No cars found for "${query}"${brandSuffix}${classSuffix}.`
       );
     await interaction.reply({ embeds: [emptyEmbed], ephemeral: true });
     return;
@@ -401,7 +412,7 @@ export async function handleChooseCar(interaction: ChatInputCommandInteraction) 
   let currentIndex = 0;
 
   const formatCurrency = (value: number): string =>
-    `$${value.toLocaleString("en-US")}`;
+    `${value.toLocaleString("en-US")} CR`;
 
   const createCarEmbed = async (index: number) => {
     const carName = filteredResults[index];

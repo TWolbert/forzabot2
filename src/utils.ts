@@ -25,7 +25,7 @@ export const randomIntStep = (min: number, max: number, step: number): number =>
 };
 
 export const formatCurrency = (value: number): string =>
-  `$${value.toLocaleString("en-US")}`;
+  `${value.toLocaleString("en-US")} CR`;
 
 export const parseTime = (timeStr: string): number | null => {
   const match = timeStr.match(/^(\d+):(\d{1,2})\.(\d{1,3})$/);
@@ -190,7 +190,7 @@ export const searchCars = async (rawQuery: string, maxValue?: number): Promise<s
 
   // Filter by max value if provided
   if (maxValue !== undefined) {
-    filteredCars = carData.filter(car => car.value <= maxValue);
+    filteredCars = carData.filter(car => car.value > 0 && car.value <= maxValue);
   }
 
   const scored = filteredCars
@@ -248,7 +248,16 @@ export const getRaceIconPath = async (raceType: string): Promise<string | null> 
     raceIconMap = await buildIconMap(RACE_ICON_DIR);
   }
 
-  return raceIconMap[raceType.toLowerCase()] ?? null;
+  const key = raceType.toLowerCase();
+  const aliases: Record<string, string> = {
+    road: "circuit",
+    dirt: "rally",
+    "cross-country": "offroad",
+    street: "circuit",
+    touge: "rally",
+    "time-attack": "circuit",
+  };
+  return raceIconMap[key] ?? raceIconMap[aliases[key] ?? ""] ?? null;
 };
 
 export const getTopCarImage = async (carName: string): Promise<string | null> => {
@@ -272,7 +281,7 @@ export const getTopCarImage = async (carName: string): Promise<string | null> =>
     const searchUrl = new URL(baseUrl);
     searchUrl.searchParams.set("action", "query");
     searchUrl.searchParams.set("list", "search");
-    searchUrl.searchParams.set("srsearch", carName);
+    searchUrl.searchParams.set("srsearch", `${carName} Forza Horizon 6`);
     searchUrl.searchParams.set("srlimit", "1");
     searchUrl.searchParams.set("format", "json");
 

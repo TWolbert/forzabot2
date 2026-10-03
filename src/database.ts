@@ -1,6 +1,8 @@
 import { Database } from "bun:sqlite";
+import path from "node:path";
 
-export const db = new Database("forzabot.db");
+const databasePath = process.env.DATABASE_PATH ?? path.resolve(import.meta.dir, "../forzabot.db");
+export const db = new Database(databasePath);
 db.exec('PRAGMA foreign_keys = OFF'); // Disable for migrations
 
 export function initializeDatabase() {
@@ -391,6 +393,21 @@ export function initializeDatabase() {
     }
   } catch (e) {
     console.error('Migration error for player_points_history:', e)
+  }
+
+  // Add a starter set of FH6 route names for lap-time tracking. Safe to run on each startup.
+  const fh6Routes = [
+    ["Shirakawa Circuit", "FH6 circuit race in Japan."],
+    ["Airfield Trail", "FH6 trail race."],
+    ["Wind Farm Cross Country", "FH6 cross-country race."],
+    ["Hokubu Time Attack", "FH6 time attack event."],
+  ] as const;
+  const addFh6Route = db.prepare(
+    "INSERT OR IGNORE INTO races (id, name, description, created_by, created_at) VALUES (?, ?, ?, 'system', ?)"
+  );
+  for (const [name, description] of fh6Routes) {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    addFh6Route.run(`fh6-${slug}`, name, description, Date.now());
   }
 
   // Re-enable foreign keys after migrations

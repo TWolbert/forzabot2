@@ -343,11 +343,11 @@ export function ActiveRound() {
   }
 
   const formatRaceType = (type: string) => {
-    return type.charAt(0).toUpperCase() + type.slice(1)
+    return type.replace(/-/g, ' ').replace(/\b\w/g, character => character.toUpperCase())
   }
 
   const formatCurrency = (value: number) => {
-    return `$${value.toLocaleString()}`
+    return `${value.toLocaleString()} CR`
   }
 
   const handlePlaceBet = async () => {

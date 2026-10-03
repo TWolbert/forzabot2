@@ -1,4 +1,4 @@
-# ForzaBot - Discord Forza Racing League Bot
+# ForzaBot FH6 - Discord Forza Horizon 6 Racing League Bot
 
 A comprehensive Discord bot for managing Forza racing leagues with round management, car selection, statistics tracking, and laptime recording.
 
@@ -60,7 +60,7 @@ Create a new Forza round.
   - `player1` (required): First player
   - `player2` (required): Second player
   - `player3-8` (optional): Additional players (up to 8 total)
-  - `race_type` (optional): Choose from rally, goliath, circuit, drag, offroad, all
+  - `race_type` (optional): Choose from road, dirt, cross-country, street, touge, time attack, drag, Goliath, cops and robbers, or all
   - `year` (optional, integer): Restrict to a specific model year
   - `brand` (optional, string): Restrict round cars to a brand (e.g. `Audi`, `Aston Martin`)
   - `restrict_class` (optional, boolean): Enforce specific car class restrictions (default: false)
@@ -70,9 +70,9 @@ Create a new Forza round.
   - Automatically deduplicates players
   - With `brand`: `/choosecar` search + random only return that brand
   - With `brand`: min budget is cheapest brand car + 50k, max budget is brand's most expensive car
-  - Without `restrict_class`: Full 50K-500K value range
-  - With `restrict_class`: Class-specific value ranges
-- **Example**: `/startround player1: @User1 player2: @User2 race_type: circuit restrict_class: true`
+  - Without `restrict_class`: FH6-wide credit budget range
+  - With `restrict_class`: FH6 class-specific value ranges (D, C, B, A, S1, S2, R, X)
+- **Example**: `/startround player1: @User1 player2: @User2 race_type: road restrict_class: true`
 
 #### `/gamestart`
 Start the game with all players locked in.
@@ -123,7 +123,7 @@ Create a new race/track for lap time tracking.
   - Race names are unique
   - Generates unique Race ID
   - Returns confirmation with Race ID
-- **Example**: `/addrace name: Silverstone description: Silverstone circuit`
+- **Example**: `/addrace name: My Japan Sprint description: Custom FH6 route`
 
 #### `/registertime`
 Record a lap time for a race.
@@ -138,8 +138,8 @@ Record a lap time for a race.
   - Displays car image
   - Time display in readable format (MM:SS.MS)
 - **Examples**:
-  - `/registertime race: Silverstone laptime: 1:34.860` - Browse all cars
-  - `/registertime race: Silverstone laptime: 1:34.860 car_query: Ferrari` - Show only Ferrari cars
+  - `/registertime race: Shirakawa Circuit laptime: 1:34.860` - Browse all cars
+  - `/registertime race: Shirakawa Circuit laptime: 1:34.860 car_query: Ferrari` - Show only Ferrari cars
 
 #### `/times`
 View recorded lap times with filtering.
@@ -154,9 +154,9 @@ View recorded lap times with filtering.
   - Use together or separately
 - **Examples**:
   - `/times` - All times
-  - `/times race: Silverstone` - All times on Silverstone
+  - `/times race: Shirakawa Circuit` - All times on Shirakawa Circuit
   - `/times car: Ferrari` - All times with Ferrari cars
-  - `/times race: Silverstone car: F40` - Ferrari F40 times on Silverstone
+  - `/times race: Shirakawa Circuit car: F40` - Ferrari F40 times on Shirakawa Circuit
 
 #### `/listrace`
 List all available races/tracks.
@@ -177,8 +177,8 @@ Remove a recorded lap time.
   - Confirms deletion with red 🗑️ button
   - Shows car image before deletion
 - **Examples**:
-  - `/removetime race: Silverstone` - Browse all cars to remove
-  - `/removetime race: Silverstone car_query: Ferrari` - Show only Ferrari cars
+  - `/removetime race: Shirakawa Circuit` - Browse all cars to remove
+  - `/removetime race: Shirakawa Circuit car_query: Ferrari` - Show only Ferrari cars
 
 ---
 
@@ -195,7 +195,7 @@ Examples:
 
 ## Game Flow Example
 
-1. **Create a round**: `/startround player1: @User1 player2: @User2 player3: @User3 race_type: circuit`
+1. **Create a round**: `/startround player1: @User1 player2: @User2 player3: @User3 race_type: road`
 2. **Players choose cars**:
    - User1: `/choosecar query: Ferrari`
    - User2: `/choosecar query: Lamborghini`
@@ -208,16 +208,16 @@ Examples:
 
 ## Lap Time Tracking Example
 
-1. **Create a track**: `/addrace name: Silverstone description: British GP circuit`
+1. **Create a track**: `/addrace name: Shirakawa Circuit description: FH6 circuit race in Japan`
 2. **Register lap times**:
-   - `/registertime race: Silverstone laptime: 1:34.860` (then select car)
-   - `/registertime race: Silverstone laptime: 1:35.200 car_query: Ferrari`
+   - `/registertime race: Shirakawa Circuit laptime: 1:34.860` (then select car)
+   - `/registertime race: Shirakawa Circuit laptime: 1:35.200 car_query: Ferrari`
 3. **View times**: 
    - `/times` - See all times
-   - `/times race: Silverstone` - See all times on Silverstone
+   - `/times race: Shirakawa Circuit` - See all times on Shirakawa Circuit
    - `/times car: Ferrari` - See all Ferrari times
-   - `/times race: Silverstone car: Ferrari` - See Ferrari times on Silverstone
-4. **Remove a time**: `/removetime race: Silverstone car_query: Ferrari` (then confirm deletion)
+   - `/times race: Shirakawa Circuit car: Ferrari` - See Ferrari times on the circuit
+4. **Remove a time**: `/removetime race: Shirakawa Circuit car_query: Ferrari` (then confirm deletion)
 5. **List all tracks**: `/listrace`
 
 ---
@@ -226,7 +226,7 @@ Examples:
 
 ### rounds
 - `id`: Unique round identifier (UUID)
-- `class`: Car class (D, C, B, A, S1, S2)
+- `class`: Car class (D, C, B, A, S1, S2, R, X)
 - `value`: Budget in credits
 - `race_type`: Type of race
 - `year`: Model year restriction (optional)
@@ -259,16 +259,27 @@ Examples:
    - `TOKEN`: Discord bot token
    - `CLIENT_ID`: Discord application ID
   - `POINTS_ADMIN_PASSWORD`: Password used for the `/points` web management interface
-3. Load car data: Place `output.csv` in root directory
+3. Generate the FH6 car dataset: `python3 python/scraper.py output.csv`
 4. Register commands: `bun reloadCommands.ts`
 5. Start bot: `bun index.ts`
+
+## Docker Deployment
+
+1. Copy `.env.example` to `.env` and set `TOKEN`, `CLIENT_ID`, and `POINTS_ADMIN_PASSWORD`.
+2. Set `IMAGE_BASE_URL` to the public origin for the dashboard (for example, `https://forza.example.com` when a reverse proxy handles HTTPS).
+3. Build and start the container: `docker compose up --build -d`
+4. Point your hostname or reverse proxy at the host's port `8080`.
+
+The container serves the dashboard and API on port `8080` and runs the Discord bot. SQLite data and downloaded car images persist in the `forzabot-data` volume. To register slash commands the first time, run `docker compose run --rm forzabot bun run reloadCommands.ts`.
 
 ---
 
 ## Notes
 
 - Car searches use fuzzy matching for better results
-- Images are fetched from the Forza Fandom Wiki
+- Car data (including prices and availability) is imported from the FH6 Forza Wiki car list
+- FH6 route names are seeded automatically; add custom routes with `/addrace`
+- Images are fetched from the Forza Horizon 6 Forza Wiki pages
 - All times are automatically updated if registered again for the same player/car/race combination
 - Only the round creator can finish a game and select the winner
 - Commands have a 5-minute timeout for interactive selections
