@@ -13,7 +13,7 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
   const raceType = chosenRaceType ?? pickRandom(RACE_TYPES);
   const year = interaction.options.getInteger("year");
   const brand = interaction.options.getString("brand")?.trim();
-  let [minValue, maxValue] = restrictClass ? CLASS_VALUE_RANGES[carClass] : [25_000, 20_000_000];
+  let [minValue, maxValue] = restrictClass ? CLASS_VALUE_RANGES[carClass] : [50_000, 500_000];
 
   if (brand) {
     const allCars = await loadCarData();
@@ -37,13 +37,15 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
     }
     const cheapest = Math.min(...prices);
     const mostExpensive = Math.max(...prices);
-    const brandMin = Math.min(cheapest + 50_000, mostExpensive);
-
-    minValue = Math.max(minValue, brandMin);
-    maxValue = mostExpensive;
+    minValue = Math.max(minValue, cheapest + 50_000);
+    maxValue = Math.min(maxValue, mostExpensive);
 
     if (minValue > maxValue) {
-      minValue = maxValue;
+      await interaction.reply({
+        content: `No cars found for brand "${brand}" within the ${formatCurrency(50_000)}–${formatCurrency(500_000)} round budget.`,
+        ephemeral: true,
+      });
+      return;
     }
   }
 

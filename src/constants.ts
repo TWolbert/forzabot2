@@ -19,14 +19,14 @@ export const CANDR_PRESET_CARS = [
 ] as const;
 
 export const CLASS_VALUE_RANGES: Record<(typeof CAR_CLASSES)[number], [number, number]> = {
-  D: [20_000, 100_000],
-  C: [25_000, 200_000],
-  B: [25_000, 500_000],
-  A: [50_000, 1_000_000],
-  S1: [100_000, 2_000_000],
-  S2: [250_000, 5_000_000],
-  R: [500_000, 10_000_000],
-  X: [1_000_000, 20_000_000],
+  D: [50_000, 100_000],
+  C: [50_000, 200_000],
+  B: [50_000, 300_000],
+  A: [50_000, 400_000],
+  S1: [100_000, 500_000],
+  S2: [250_000, 500_000],
+  R: [400_000, 500_000],
+  X: [450_000, 500_000],
 };
 
 export const CLASS_COLORS: Record<(typeof CAR_CLASSES)[number], number> = {

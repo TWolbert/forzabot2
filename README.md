@@ -69,9 +69,9 @@ Create a new Forza round.
   - Stores round in database
   - Automatically deduplicates players
   - With `brand`: `/choosecar` search + random only return that brand
-  - With `brand`: min budget is cheapest brand car + 50k, max budget is brand's most expensive car
-  - Without `restrict_class`: FH6-wide credit budget range
-  - With `restrict_class`: FH6 class-specific value ranges (D, C, B, A, S1, S2, R, X)
+  - Round budgets stay between 50,000 and 500,000 CR
+  - With `brand`: budget respects the brand's available car values within that limit
+  - With `restrict_class`: uses FH6 class-specific value ranges (D, C, B, A, S1, S2, R, X), all within that limit
 - **Example**: `/startround player1: @User1 player2: @User2 race_type: road restrict_class: true`
 
 #### `/gamestart`
