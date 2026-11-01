@@ -49,6 +49,8 @@ COPY --from=build /app/output.csv ./output.csv
 COPY docker-entrypoint.sh /usr/local/bin/forzabot-entrypoint
 
 RUN chmod +x /usr/local/bin/forzabot-entrypoint
-USER forzabot
+# Start as root only long enough to repair ownership of a pre-existing
+# (possibly root-owned) data volume, then drop to the unprivileged user in the
+# entrypoint. The app itself never runs as root.
 EXPOSE 8080
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/forzabot-entrypoint"]

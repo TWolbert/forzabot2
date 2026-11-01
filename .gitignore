@@ -45,3 +45,6 @@ web/bun.lock
 
 # Rust build artifacts
 /target
+
+# Fedora/SELinux bind-mount data
+/data/

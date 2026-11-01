@@ -2293,7 +2293,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let mut database =
         Connection::open(env::var("DATABASE_PATH").unwrap_or_else(|_| "forzabot.db".into()))?;
-    forzabot_database::initialize(&mut database)?;
+    forzabot_database::initialize(&mut database).map_err(|error| {
+        format!(
+            "Failed to initialize database at {}: {error}. \
+             Ensure the database and its directory are writable by the bot user (UID 999).",
+            env::var("DATABASE_PATH").unwrap_or_else(|_| "forzabot.db".into())
+        )
+    })?;
     let cars = load_cars("output.csv")?;
     let catalog = cars::load_catalog("output.csv")?;
     let mut client = serenity::Client::builder(&token, GatewayIntents::GUILDS)

@@ -340,6 +340,33 @@ CLI. It talks to the Rust API at the same origin under `/api`.
 3. Build and start the container: `docker compose up --build -d`
 4. Point your hostname or reverse proxy at the host's port `8080`.
 
+### Fedora / SELinux
+
+Docker named volumes work on Fedora without extra labels. If you use a **bind
+mount** (for example `./data:/data`), SELinux blocks the container from writing
+SQLite journal files and you will see `attempt to write a readonly database`.
+Use the provided variant, which adds the private label `:Z`:
+
+```bash
+mkdir -p data
+docker compose -f docker-compose.fedora.yml up -d --build
+```
+
+To migrate existing data from the named volume into `./data`, stop the stack and
+copy it before starting the bind-mount variant:
+
+```bash
+docker compose down
+docker run --rm -v forzabot-data:/from -v "$PWD/data":/to alpine \
+  sh -c 'cp -a /from/. /to/'
+docker compose -f docker-compose.fedora.yml up -d
+```
+
+Diagnose denials with `sudo ausearch -m avc -ts recent` or `sudo dmesg | grep
+denied`. On rootless Podman, prefer `./data:/data:Z,U` so the mount is also
+chowned to the container user. Do not add `:Z` to a path shared with other
+containers; use `:z` for shared labels.
+
 The container runs the Rust API on port `8080` and the Rust Discord bot. It
 serves the Dioxus RSX dashboard built to WebAssembly and uses the `forzabot-data`
 volume for SQLite and car images. Register commands once from inside the running

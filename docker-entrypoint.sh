@@ -3,6 +3,16 @@ set -eu
 
 : "${TOKEN:?TOKEN must be set}"
 : "${DATABASE_PATH:=/data/forzabot.db}"
+: "${CAR_IMAGES_PATH:=/data/car-images}"
+
+# Volumes created by the previous root-running Bun container are root-owned.
+# SQLite needs write access to both the database file and its directory (for
+# journal/lock files), so repair ownership once and then drop privileges.
+if [ "$(id -u)" = "0" ]; then
+  mkdir -p "$(dirname "$DATABASE_PATH")" "$CAR_IMAGES_PATH"
+  chown -R forzabot:forzabot "$(dirname "$DATABASE_PATH")" "$CAR_IMAGES_PATH" 2>/dev/null || true
+  exec setpriv --reuid=forzabot --regid=forzabot --init-groups "$0" "$@"
+fi
 
 # The API owns schema upgrades and the HTTP/dashboard listener. The bot only
 # consumes the resulting database, so start the API first and stop it with the
