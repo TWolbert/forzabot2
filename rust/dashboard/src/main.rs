@@ -156,23 +156,22 @@ fn PointsManagement() -> Element {
     rsx! { section { class: "panel orange-border", h1 { "🛡 POINTS MANAGEMENT" }
         if !message().is_empty() { p { class: "error", "{message}" } }
         if token().is_none() {
-            form { onsubmit: move |event| {
-                event.prevent_default();
-                let supplied = password();
-                spawn(async move {
-                    match admin_request("/api/admin/login","POST",None,Some(serde_json::json!({"password":supplied}))).await {
-                        Ok(data) => if let Some(value) = data["token"].as_str() {
-                            let value = value.to_owned();
-                            if let Err(error) = LocalStorage::set(ADMIN_TOKEN_KEY,&value) { message.set(format!("Could not save admin session: {error}")); return; }
-                            token.set(Some(value)); password.set(String::new()); message.set(String::new());
-                        },
-                        Err(error) => message.set(error),
-                    }
-                });
-            },
+            div { class: "auth-form",
                 label { r#for: "admin-password", "Admin password" }
                 input { id:"admin-password", class:"filter", r#type:"password", autocomplete:"current-password", value:"{password}", oninput: move |event| password.set(event.value()) }
-                button { class:"action", r#type:"submit", "Sign in" }
+                button { class:"action", onclick: move |_| {
+                    let supplied = password();
+                    spawn(async move {
+                        match admin_request("/api/admin/login","POST",None,Some(serde_json::json!({"password":supplied}))).await {
+                            Ok(data) => if let Some(value) = data["token"].as_str() {
+                                let value = value.to_owned();
+                                if let Err(error) = LocalStorage::set(ADMIN_TOKEN_KEY,&value) { message.set(format!("Could not save admin session: {error}")); return; }
+                                token.set(Some(value)); password.set(String::new()); message.set(String::new());
+                            },
+                            Err(error) => message.set(error),
+                        }
+                    });
+                }, "Sign in" }
             }
         } else {
             button { class:"action", onclick: move |_| { let old = token(); spawn(async move {
@@ -396,34 +395,37 @@ fn SignIn() -> Element {
     rsx! { section { class: "panel orange-border auth-panel",
         h1 { "FORZABOT ACCOUNT" }
         p { class: "muted", "Sign in to place bets and manage your profile." }
-        form { onsubmit: move |event| {
-            event.prevent_default();
-            error.set(String::new());
-            busy.set(true);
-            let path = if register() { "/api/auth/register" } else { "/api/auth/login" };
-            let body = serde_json::json!({"username": username(), "password": password()});
-            spawn(async move {
-                match admin_request(path, "POST", None, Some(body)).await {
-                    Ok(data) => match serde_json::from_value::<AuthResponse>(data) {
-                        Ok(auth) => {
-                            let _ = LocalStorage::set(AUTH_TOKEN_KEY, &auth.token);
-                            username.set(String::new());
-                            password.set(String::new());
-                            navigator.push(Route::Profile {});
-                        }
-                        Err(reason) => error.set(reason.to_string()),
-                    },
-                    Err(reason) => error.set(reason),
-                }
-                busy.set(false);
-            });
-        },
+        div { class: "auth-form",
             label { class: "field-label", r#for: "username", "Username" }
             input { id: "username", class: "filter", autocomplete: "username", value: "{username}", oninput: move |event| username.set(event.value()) }
             label { class: "field-label", r#for: "password", "Password" }
             input { id: "password", class: "filter", r#type: "password", autocomplete: if register() { "new-password" } else { "current-password" }, value: "{password}", oninput: move |event| password.set(event.value()) }
             if !error().is_empty() { p { class: "error", "{error}" } }
-            button { class: "action", r#type: "submit", disabled: busy(), if busy() { "Please wait…" } else if register() { "Create account" } else { "Sign in" } }
+            button { class: "action", disabled: busy(), onclick: move |_| {
+                error.set(String::new());
+                busy.set(true);
+                let path = if register() { "/api/auth/register" } else { "/api/auth/login" };
+                let body = serde_json::json!({"username": username(), "password": password()});
+                spawn(async move {
+                    match admin_request(path, "POST", None, Some(body)).await {
+                        Ok(data) => match serde_json::from_value::<AuthResponse>(data) {
+                            Ok(auth) => {
+                                if let Err(reason) = LocalStorage::set(AUTH_TOKEN_KEY, &auth.token) {
+                                    error.set(format!("Could not save session: {reason}"));
+                                    busy.set(false);
+                                    return;
+                                }
+                                username.set(String::new());
+                                password.set(String::new());
+                                navigator.push(Route::Profile {});
+                            }
+                            Err(reason) => error.set(format!("Unexpected server response: {reason}")),
+                        },
+                        Err(reason) => error.set(reason),
+                    }
+                    busy.set(false);
+                });
+            }, if busy() { "Please wait…" } else if register() { "Create account" } else { "Sign in" } }
         }
         button { class: "text-button", r#type: "button", onclick: move |_| register.toggle(), if register() { "Already have an account? Sign in" } else { "Need an account? Register" } }
     } }
