@@ -2293,6 +2293,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let mut database =
         Connection::open(env::var("DATABASE_PATH").unwrap_or_else(|_| "forzabot.db".into()))?;
+    database.busy_timeout(std::time::Duration::from_secs(10))?;
     forzabot_database::initialize(&mut database).map_err(|error| {
         format!(
             "Failed to initialize database at {}: {error}. \
