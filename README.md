@@ -254,23 +254,98 @@ Examples:
 
 ## Setup
 
-1. Install dependencies: `bun install`
-2. Set environment variables:
-   - `TOKEN`: Discord bot token
-   - `CLIENT_ID`: Discord application ID
-  - `POINTS_ADMIN_PASSWORD`: Password used for the `/points` web management interface
-3. Generate the FH6 car dataset: `python3 python/scraper.py output.csv`
-4. Register commands: `bun reloadCommands.ts`
-5. Start bot: `bun index.ts`
+### Rust deployment
+
+The Docker image now builds and runs the Rust bot and API and serves the Dioxus
+RSX dashboard; Bun, Node, React, and Python are no longer used at runtime. The
+original Bun/React/Python implementation is archived under `legacy/` and is not
+built or deployed.
+`docker compose up --build` builds all three from the `rust/` workspace.
+
+Ported Discord commands: `/ping`, `/forza`, `/searchcar`, `/addrace`,
+`/listrace`, `/times`, `/pastraces`, `/resetround`, `/startround`,
+`/registertime`, `/removetime`, `/choosecar`, `/gamestart` (single races,
+four-race series, and Cops and Robbers), `/stats`, and the DM-only `/linkweb`.
+Search, car-selection, lap-time, and game-start embeds resolve car images from
+confirmed local images first, then the Forza Wiki and Wikipedia, and game-start
+also shows cached Discord avatars. Single-race and series result embeds include
+the winner's car image, avatar, and winning car name. Set `IMAGE_BASE_URL` so
+relative confirmed image paths are absolute for Discord. The Rust bot's Discord
+rendering has only been verified through unit-level embed serialization, not
+against a live Discord server. Game controls live in memory and expire after one
+hour (12 hours for Cops and Robbers), so a bot restart loses an in-progress
+control session.
+
+Ported API routes include game, leaderboard, round, time, race, player, and
+seasonal-map reads; registration, login, sessions, logout, points history,
+username updates, secure Discord linking, bet placement/current, Cops-and-Robbers
+tile updates, car-image lookup and confirmed-image storage/serving, and
+password-protected points administration.
+
+The RSX dashboard includes home, leaderboard, player profiles, past games with
+detail pages, lap times with detail and car-image handling, the live round with
+betting and Cops-and-Robbers tile controls, sign-in/registration, account and
+Discord-link management, and points administration. Internal bet settlement, placement-award, and points-history
+write routes are not exposed by the Rust API because the Rust bot settles them
+inside the transaction that finishes a round, preventing double awards.
+
+Rust game results settle locked bets and award linked-account placement points
+transactionally. The legacy Bun API's unverified Discord-link endpoint is not
+reproduced; `/linkweb` uses a single-use, hashed, ten-minute challenge.
+
+Run `cargo test --workspace -j 2` to test the Rust code. Generate the car dataset
+with `cargo run -p forzabot-tools --bin scrape-cars -- output.csv`, or generate
+class icons with `cargo run -p forzabot-tools --bin generate-class-icons --
+media/classes`.
+
+Set `TOKEN`, `CLIENT_ID`, and `POINTS_ADMIN_PASSWORD` as described below. The API
+listens on `RUST_API_ADDR` (Docker uses `0.0.0.0:8080`). It creates and migrates
+`DATABASE_PATH` on first start. `DASHBOARD_DIST` points at the built RSX assets;
+the API serves SPA routes from it with an `index.html` fallback. To register the
+current command set, run `forzabot-discord --register-ported-commands` once with
+`CLIENT_ID` set; this upserts the definitions and does not delete other commands.
+
+For local development, run the API and bot separately against a test database.
+Do not run the Rust and Bun bots simultaneously with the same token: they would
+compete for Discord gateway events.
+
+### Seasonal FH6 maps
+
+The local images in `media/maps/` are stitched from Map Genie Japan map tiles
+and include a 13×7 Cops and Robbers grid. Map imagery: [Map Genie](https://mapgenie.io/forza-horizon-6/maps/japan);
+the user reported receiving permission to download the tiles for this hobby
+project. The Goliath display uses the Japan map, **not a marked race route**.
+The map changes weekly through spring → summer → autumn → winter. The initial
+summer transition is approximately 2026-11-05 14:29:52 UTC, calculated from
+the supplied countdown; update `SUMMER_START_UNIX_SECONDS` in `rust/core/src/lib.rs`
+and `SUMMER_START_SECONDS` in `src/seasons.ts` if the actual transition differs.
+
+The RSX dashboard lives in `rust/dashboard` and is built in Docker with
+`cargo build --target wasm32-unknown-unknown` plus the matching `wasm-bindgen`
+CLI. It talks to the Rust API at the same origin under `/api`.
+
+## Setup
+
+1. Set `TOKEN`, `CLIENT_ID`, and `POINTS_ADMIN_PASSWORD`.
+2. Generate the FH6 car dataset if needed:
+   `cargo run -p forzabot-tools --bin scrape-cars -- output.csv`
+3. Register the slash commands:
+   `cargo run -p forzabot-discord -- --register-ported-commands`
+4. Run the API and bot from `target/release` (or use Docker below).
 
 ## Docker Deployment
 
 1. Copy `.env.example` to `.env` and set `TOKEN`, `CLIENT_ID`, and `POINTS_ADMIN_PASSWORD`.
-2. Set `IMAGE_BASE_URL` to the public origin for the dashboard (for example, `https://forza.example.com` when a reverse proxy handles HTTPS).
+2. Set `IMAGE_BASE_URL` to the public origin for the dashboard.
 3. Build and start the container: `docker compose up --build -d`
 4. Point your hostname or reverse proxy at the host's port `8080`.
 
-The container serves the dashboard and API on port `8080` and runs the Discord bot. SQLite data and downloaded car images persist in the `forzabot-data` volume. To register slash commands the first time, run `docker compose run --rm forzabot bun run reloadCommands.ts`.
+The container runs the Rust API on port `8080` and the Rust Discord bot. It
+serves the Dioxus RSX dashboard built to WebAssembly and uses the `forzabot-data`
+volume for SQLite and car images. Register commands once from inside the running
+container:
+
+`docker compose exec forzabot forzabot-discord --register-ported-commands`
 
 ---
 

@@ -5,13 +5,20 @@ services:
     env_file:
       - .env
     environment:
-      DASHBOARD_PORT: "8080"
+      RUST_API_ADDR: "0.0.0.0:8080"
+      DASHBOARD_DIST: /app/dashboard-dist
       DATABASE_PATH: /data/forzabot.db
       CAR_IMAGES_PATH: /data/car-images
     ports:
       - "8080:8080"
     volumes:
       - forzabot-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/races >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 volumes:
   forzabot-data:

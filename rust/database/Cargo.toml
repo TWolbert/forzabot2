@@ -1,0 +1,9 @@
+[package]
+name = "forzabot-database"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+sha2 = "0.10"
+uuid = "1"

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Loader, ChevronLeft, Users, Trophy, Check } from 'lucide-react'
 import { getCachedCarImage } from '../utils/carImageCache'
 import { getDiscordLink, getMe, placeBet, readAuthToken, setCandrTile } from '../api'
+import { seasonAt } from '../../../src/seasons'
 
 interface Player {
   id: string
@@ -116,10 +117,11 @@ export function ActiveRound() {
     const rowIndex = rowLetter.charCodeAt(0) - 'A'.charCodeAt(0)
     if (rowIndex < 0 || rowIndex > 6) return null
 
-    const mapLeftPct = 3.3
-    const mapTopPct = 5.3
-    const cellWidthPct = 7.44
-    const cellHeightPct = 13.53
+    // Seasonal maps are 2112×2112, with a 64px label border and a 2048px grid.
+    const mapLeftPct = 64 / 2112 * 100
+    const mapTopPct = 64 / 2112 * 100
+    const cellWidthPct = 2048 / 2112 * 100 / 13
+    const cellHeightPct = 2048 / 2112 * 100 / 7
     const leftPct = mapLeftPct + (col - 1) * cellWidthPct
     const topPct = mapTopPct + rowIndex * cellHeightPct
 
@@ -481,8 +483,8 @@ export function ActiveRound() {
           <div className="rounded-lg border border-amber-500/60 bg-black/35 p-2">
             <div className="relative overflow-hidden rounded-md border border-amber-400/50">
               <img
-                src={candr?.map_url || '/api/candr-map'}
-                alt="Cops and Robbers grid map"
+                src={`${candr?.map_url || '/api/candr-map'}?season=${seasonAt(Math.floor(now / 1000))}`}
+                alt="Forza Horizon 6 Japan Cops and Robbers grid map"
                 className="block w-full"
               />
               {tileStyle && (
@@ -492,6 +494,7 @@ export function ActiveRound() {
                 />
               )}
             </div>
+            <p className="mt-2 text-xs text-amber-200/80">Map imagery: <a href="https://mapgenie.io/forza-horizon-6/maps/japan" target="_blank" rel="noreferrer" className="underline">Map Genie</a>. Current season: {seasonAt(Math.floor(now / 1000))}.</p>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
               <p className="font-bold text-amber-200">Previous Tile: <span className="text-amber-100">{candr?.previous_tile ?? 'None'}</span></p>
               <p className="font-bold text-amber-200">Next Tile In: <span className="text-red-300">{nextTileIn}</span></p>
@@ -572,6 +575,13 @@ export function ActiveRound() {
         </div>
         <p className="text-gray-400 font-bold text-sm">Live Round in Progress</p>
       </div>
+
+      {round.race_type?.toLowerCase() === 'goliath' && (
+        <div className="mb-8 rounded-lg border-2 border-orange-500 overflow-hidden">
+          <img src={`/api/candr-map?season=${seasonAt(Math.floor(now / 1000))}`} alt="Forza Horizon 6 Japan map, Goliath route not marked" className="block w-full" />
+          <p className="p-3 text-sm text-gray-300">Japan map; Goliath route not marked. Map imagery: <a href="https://mapgenie.io/forza-horizon-6/maps/japan" target="_blank" rel="noreferrer" className="underline">Map Genie</a>.</p>
+        </div>
+      )}
 
       {/* Game Details Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">

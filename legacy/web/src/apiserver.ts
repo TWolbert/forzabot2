@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite'
 import { mkdir, unlink } from 'node:fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'node:crypto'
+import { seasonAt } from '../../src/seasons'
 
 // Initialize database connection
 // Resolve to repo root so the API writes to the shared DB
@@ -511,7 +512,7 @@ async function getWikipediaCarImage(carName: string, index = 0): Promise<string 
 // Static file serving
 const distPath = join(import.meta.dir, '../dist')
 const carImagesPath = process.env.CAR_IMAGES_PATH || join(import.meta.dir, '../car-images')
-const candrMapPath = join(import.meta.dir, '../../media/cops_and_robbers_map.png')
+const candrMapPath = () => join(import.meta.dir, `../../media/maps/fh6-japan-${seasonAt(Math.floor(Date.now() / 1000))}.jpg`)
 
 async function serveStaticFile(pathname: string): Promise<Response | null> {
   try {
@@ -1764,12 +1765,12 @@ const handlers: Record<string, (req: Request) => Response | Promise<Response>> =
     }
 
     try {
-      const file = Bun.file(candrMapPath)
+      const file = Bun.file(candrMapPath())
       if (!(await file.exists())) {
         return new Response(JSON.stringify({ error: 'Map not found' }), { status: 404 })
       }
       return new Response(await file.bytes(), {
-        headers: { 'Content-Type': 'image/png' }
+        headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=300' }
       })
     } catch (error) {
       console.error('Failed to serve CANDR map:', error)

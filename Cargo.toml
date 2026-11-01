@@ -1,0 +1,3 @@
+[workspace]
+members = ["rust/core", "rust/database", "rust/discord", "rust/dashboard", "rust/api", "rust/carmedia", "rust/tools"]
+resolver = "2"

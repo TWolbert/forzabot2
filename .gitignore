@@ -42,3 +42,6 @@ forzabot.db
 .env
 
 web/bun.lock
+
+# Rust build artifacts
+/target

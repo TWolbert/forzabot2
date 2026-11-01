@@ -2,6 +2,7 @@ import path from "node:path";
 import { ChatInputCommandInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, Client, StringSelectMenuBuilder } from "discord.js";
 import { formatCurrency, getTopCarImage, pickRandom } from "../utils";
 import { db } from "../database";
+import { seasonAt } from "../seasons";
 
 const CANDR_ROWS = ["A", "B", "C", "D", "E", "F", "G"] as const;
 const CANDR_TILE_INTERVAL_MS = 2 * 60 * 1000;
@@ -83,8 +84,8 @@ const buildCandrStatusEmbed = (
         inline: false,
       }
     )
-    .setImage("attachment://candr-map.png")
-    .setFooter({ text: `Round ID: ${roundId}` });
+    .setImage("attachment://candr-map.jpg")
+    .setFooter({ text: `Round ID: ${roundId} • Map imagery: Map Genie` });
 
   return embed;
 };
@@ -241,8 +242,8 @@ export async function handleGameStart(interaction: ChatInputCommandInteraction, 
       ).run(round.id, robber.id, null, null, startedAt, null, startedAt, null);
     })();
 
-    const mapPath = path.join(process.cwd(), "media", "cops_and_robbers_map.png");
-    const mapName = "candr-map.png";
+    const mapPath = path.join(process.cwd(), "media", "maps", `fh6-japan-${seasonAt(Math.floor(Date.now() / 1000))}.jpg`);
+    const mapName = "candr-map.jpg";
 
     const finishButtonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()

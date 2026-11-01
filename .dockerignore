@@ -13,3 +13,7 @@ forzabot.db-*
 *.sqlite3
 python/__pycache__
 .cache
+target
+rust/dashboard/target
+bun.lock
+legacy

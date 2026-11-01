@@ -1,0 +1,20 @@
+[package]
+name = "forzabot-tools"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+csv = "1"
+regex = "1"
+scraper = "0.24"
+ureq = "2"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+fontdue = "0.9"
+
+[[bin]]
+name = "scrape-cars"
+path = "src/scrape_cars.rs"
+
+[[bin]]
+name = "generate-class-icons"
+path = "src/generate_class_icons.rs"

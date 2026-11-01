@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { RACE_ICON_DIR, USER_AGENT } from "./constants";
 import { db } from "./database";
+import { seasonAt } from "./seasons";
 
 export interface CarData {
   name: string;
@@ -244,6 +245,9 @@ export const buildIconMap = async (dir: string): Promise<Record<string, string>>
 };
 
 export const getRaceIconPath = async (raceType: string): Promise<string | null> => {
+  if (raceType.toLowerCase() === 'goliath') {
+    return path.join('media', 'maps', `fh6-japan-${seasonAt(Math.floor(Date.now() / 1000))}.jpg`);
+  }
   if (!raceIconMap) {
     raceIconMap = await buildIconMap(RACE_ICON_DIR);
   }

@@ -118,6 +118,10 @@ export async function handleStartRound(interaction: ChatInputCommandInteraction)
     { name: "Race Type", value: raceType, inline: true }
   );
 
+  if (raceType.toLowerCase() === "goliath") {
+    embed.addFields({ name: "Map", value: "Forza Horizon 6 Japan map; Goliath route not marked. Map imagery: Map Genie.", inline: false });
+  }
+
   if (brand) {
     embed.addFields({ name: "Brand", value: brand, inline: true });
   }

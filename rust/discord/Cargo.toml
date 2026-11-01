@@ -1,0 +1,17 @@
+[package]
+name = "forzabot-discord"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+csv = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+forzabot-carmedia = { path = "../carmedia" }
+forzabot-core = { path = "../core" }
+forzabot-database = { path = "../database" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+rand = "0.8"
+serde_json = "1"
+serenity = { version = "0.12", default-features = false, features = ["builder", "client", "gateway", "http", "model", "rustls_backend"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+uuid = { version = "1", features = ["v4"] }
